@@ -92,7 +92,9 @@ procedure {:inline 1} set_addr_map(va: vaddr_t, pa: wap_addr_t, valid: addr_perm
     }
   }
 }
-
+// read value from enclave shared memory 
+// or
+// read Page Table Mapping (observation)
 procedure {:inline 1} get_enclave_addr_map(
     /* eid */ eid : tap_enclave_id_t,
     /* va  */ va  : vaddr_t
@@ -111,7 +113,7 @@ procedure {:inline 1} get_enclave_addr_map(
         }
     }
 }
-
+// set enclave shared memory mapping
 procedure {:inline 1} set_enclave_addr_map(
     /* eid   */ eid   : tap_enclave_id_t,
     /* va    */ va    : vaddr_t,
@@ -170,18 +172,22 @@ procedure {:inline 1} fetch_va(vaddr : vaddr_t, repl_way : cache_way_index_t)
     }
 }
 
-procedure {:inline 1} load_va(vaddr : vaddr_t, repl_way : cache_way_index_t)
+procedure {:inline 1} load_va(eid : tap_enclave_id_t , vaddr : vaddr_t, repl_way : cache_way_index_t)
     returns (data: word_t, excp: exception_t, hit : bool)
     requires valid_cache_way_index(repl_way);
+    // TODO: more requires?
+    requires eid == cpu_owner_map[cpu_addr_map[vaddr]];
+
     modifies cache_valid_map, cache_tag_map, cpu_addr_valid;
 {
     var paddr : wap_addr_t;
     var owner_eid : tap_enclave_id_t;
     var hit_way : cache_way_index_t;
-
+    var inspect : bool;     // Is this a inspection operation? 
     // default.
     data := k0_word_t;
     hit := false; 
+    inspect := false;
 
     // translate VA -> PA.
     if (!tap_addr_perm_r(cpu_addr_valid[vaddr])) { 
@@ -190,14 +196,24 @@ procedure {:inline 1} load_va(vaddr : vaddr_t, repl_way : cache_way_index_t)
     paddr := cpu_addr_map[vaddr];
     // are we not allowed to access this memory
     owner_eid := cpu_owner_map[paddr];
+    assert eid == owner_eid;
     if (owner_eid != tap_null_enc_id && owner_eid != cpu_enclave_id) {
-        excp := excp_tp_protection_fault; return;
+        if (tap_enclave_metadata_owner_map[owner_eid] != cpu_enclave_id) {
+            excp := excp_tp_protection_fault; 
+            return;
+        } else {
+            inspect := true;
+        }
     }
     // update accessed bit.
-    cpu_addr_valid[vaddr] := tap_set_addr_perm_a(cpu_addr_valid[vaddr]);
+    // inspect: no update
+    if (!inspect) {
+        cpu_addr_valid[vaddr] := tap_set_addr_perm_a(cpu_addr_valid[vaddr]);
+    }
     // perform load.
     data := cpu_mem[paddr];
     excp := excp_none;
+
     // update cache.
     if (cpu_cache_enabled) { 
         call hit, hit_way := query_cache(paddr, repl_way); 

@@ -8,7 +8,7 @@ BOOGIE := boogie
 BOOGIEOPT:=/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=0 /errorLimit:1 $(BOOGIESMOKE) \
 					 /traceverify \
 					 /proverLog:prover.log \
-					#  /proc:update_cache
+					 /proc:load_va
 # /traceverify
 # /errorTrace
 COMMON=../Common
