@@ -41,8 +41,10 @@ type addr_map_t     = [vaddr_t]wap_addr_t;
 
 const k0_addr_perm_t : addr_perm_t;
 const kmax_addr_perm_t_as_int : int; 
+const kmax_privileged_t_as_int : int;
 axiom k0_addr_perm_t == 0bv5;
 axiom kmax_addr_perm_t_as_int == 31;
+axiom kmax_privileged_t_as_int == 2;
 
 // getters.
 function tap_addr_perm_p(p : addr_perm_t) : bool { p[1:0] == 1bv1 }   // Present
@@ -96,6 +98,12 @@ type tap_enclave_metadata_pc_t              = [tap_enclave_id_t]vaddr_t;
 type tap_enclave_metadata_addr_valid_t      = [tap_enclave_id_t]addr_valid_t;
 type tap_enclave_metadata_addr_excl_t       = [tap_enclave_id_t]excl_vaddr_t;
 type tap_enclave_metadata_addr_map_t        = [tap_enclave_id_t]addr_map_t;
+
+// do the enclave has privileged identity?
+// enclave control relationship (child -> parent), (OS -> OS), make requires!
+type tap_enclave_metadata_privileged_t      = [tap_enclave_id_t]bool;
+type tap_enclave_metadata_owner_map_t       = [tap_enclave_id_t]tap_enclave_id_t;
+
 // what addresses are exclusive to an enclave.
 type excl_map_t                             = [wap_addr_t]bool;
 type shared_paddr_map_t                     = [wap_addr_t]bool;
@@ -158,6 +166,8 @@ function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 // -------------------------------------------------------------------- //
 // constants for enclaves.                                              //
 // -------------------------------------------------------------------- //
+type index_t = int;
+
 const tap_null_enc_id : tap_enclave_id_t;
 axiom tap_null_enc_id == 0;
 const tap_blocked_enc_id : tap_enclave_id_t;
@@ -173,6 +183,24 @@ axiom tap_user_def_enc_id_4 == 5;
 const tap_user_def_enc_id_5 : tap_enclave_id_t;
 axiom tap_user_def_enc_id_5 == 6;
 
+// const tap_user_def_enc_id_head : tap_enclave_id_t;
+// axiom tap_user_def_enc_id_head == 1;
+// const tap_user_def_enc_id_tail : tap_enclave_id_t;
+// axiom tap_user_def_enc_id_tail == 6;
+
+// const tap_privil_enc_id_size : index_t;
+// axiom tap_privil_enc_id_size == 16;
+// const tap_privil_enc_id_head : tap_enclave_id_t;
+// axiom tap_privil_enc_id_head == tap_user_def_enc_id_tail + 1;
+// const tap_privil_enc_id_tail : tap_enclave_id_t;
+// axiom tap_privil_enc_id_tail == tap_privil_enc_id_head + tap_privil_enc_id_size;
+
+// function privileged_enclave_id (id: tap_thread_id_t) : bool
+// {
+//   id >= tap_privil_enc_id_head && id < tap_privil_enc_id_tail
+// } 
+
+
 function valid_enclave_id(id : tap_enclave_id_t) : bool
 { 
   id != tap_null_enc_id       && id != tap_blocked_enc_id    &&
@@ -185,7 +213,7 @@ function special_enclave_id(id : tap_enclave_id_t) : bool
 {
   id == tap_blocked_enc_id    || id == tap_user_def_enc_id_1 ||
   id == tap_user_def_enc_id_2 || id == tap_user_def_enc_id_3 ||
-  id == tap_user_def_enc_id_4 || id == tap_user_def_enc_id_5
+  id == tap_user_def_enc_id_4 || id == tap_user_def_enc_id_5 
 }
 
 // -------------------------------------------------------------------- //

@@ -686,7 +686,7 @@ procedure measurement_proof_part2
     havoc regs;
     if (current_mode == mode_untrusted) {
       assume (is_measurement_untrusted_op(proof_op));
-      assume (proof_op != tap_proof_op_resume);
+      // assume (proof_op != tap_proof_op_resume);
       call RestoreContext_1();
       call status_1, current_mode_1 := MeasurementUntrustedOp(proof_op, eid_1, regs);
       call SaveContext_1();
@@ -698,7 +698,7 @@ procedure measurement_proof_part2
       havoc iter;
 
       assume (is_measurement_enclave_op(proof_op));
-      assume (proof_op != tap_proof_op_pause);
+      // assume (proof_op != tap_proof_op_pause);
       call RestoreContext_1();
       call status_1, current_mode_1, vaddr_1, word_1 := MeasurementEnclaveOp(proof_op, iter);
       call SaveContext_1();

@@ -2,6 +2,11 @@ function addrperm2int(p : addr_perm_t) : int;
 axiom (forall v1, v2 : addr_perm_t :: (v1 != v2) ==> (addrperm2int(v1) != addrperm2int(v2)));
 axiom (forall w : addr_perm_t :: addrperm2int(w) >= 0 && addrperm2int(w) <= kmax_addr_perm_t_as_int);
 
+// add privileged into measurement
+function privileged2int (p : bool) : int;
+axiom (forall v1, v2 : bool :: (v1 != v2) ==> (privileged2int(v1) != privileged2int(v2)));
+axiom (forall w : bool :: privileged2int(w) >= 0 && privileged2int(w) <= kmax_privileged_t_as_int);
+
 function valid_regindex_le(ri : regindex_t, rmax : regindex_t) : bool 
 { LE_ri(k0_regindex_t, ri) && LE_ri(ri, rmax) }
 
@@ -69,10 +74,15 @@ function {:inline} update_digest_virt_addr(
   //       else update_digest(1, s))
   //  else update_digest(k0_measurement_t, s)
 
-const kmax_cpu_measurement_index : int;
-axiom kmax_cpu_measurement_index == 2 + kN_regindex_t_as_int;
+const kbias_cpu_measurement_index : int;
+axiom kbias_cpu_measurement_index == 2;
 
+const kmax_cpu_measurement_index : int;
+axiom kmax_cpu_measurement_index == kbias_cpu_measurement_index + kN_regindex_t_as_int;
+
+/* append metadata: privileged */ 
 procedure {:inline 1} measure_cpu_state_at_index(
+   /* eid        */ eid        : tap_enclave_id_t ,
    /* regs       */ regs       : regs_t           , 
    /* pc         */ pc         : vaddr_t          , 
    /* entrypoint */ entrypoint : vaddr_t          ,
@@ -88,10 +98,15 @@ procedure {:inline 1} measure_cpu_state_at_index(
 
   if (index == 0) {
     t := update_digest(vaddr2int(pc), s);
-  } else if (index == 1) {
+  }
+  else if (index == 1) {
     t := update_digest(vaddr2int(entrypoint), s);
-  } else if (index >= 2 && index < (2 + kN_regindex_t_as_int)) {
-    ri := index - 2;
+  } 
+  // else if (index == 2) {
+  //   t := update_digest(privileged2int(tap_enclave_metadata_privileged[eid]), s);
+  // } 
+  else if (index >= kbias_cpu_measurement_index && index < kmax_cpu_measurement_index) {
+    ri := index - kbias_cpu_measurement_index;
     assert valid_regindex(ri);
     t := update_digest(word2int(regs[ri]), s);
   }
@@ -152,8 +167,8 @@ procedure measure_state_self_composed(
                 (valid_regindex(ri) && ri < (index-2)) ==> (regs1[ri] == regs2[ri])))
           ==> (t1 == t2));
   {
-    call t1 := measure_cpu_state_at_index(regs1, pc1, entrypoint1, index, t1);
-    call t2 := measure_cpu_state_at_index(regs2, pc2, entrypoint2, index, t2);
+    call t1 := measure_cpu_state_at_index(e1, regs1, pc1, entrypoint1, index, t1);
+    call t2 := measure_cpu_state_at_index(e2, regs2, pc2, entrypoint2, index, t2);
     index := index + 1;
   }
   assert ((forall ri : regindex_t :: valid_regindex(ri) ==> (regs1[ri] == regs2[ri])) &&

@@ -467,6 +467,8 @@ procedure ProveIntegrity()
             call SaveContext_1();
 
             // if the mode changed, we need to do this in trace_2
+            // trace1: eid, other enclave
+            // trace2: eid / standing
             call RestoreContext_2();
             if (current_mode == mode_enclave) {
                 call current_mode, enclave_dead := IntegrityAdversarialStep(

@@ -28,6 +28,11 @@ implementation initialize_tap()
   assume (tap_addr_perm_x(cpu_addr_valid[cpu_pc]));
   assume (cpu_owner_map[cpu_addr_map[cpu_pc]] == cpu_enclave_id);
 
+  assume (forall e : tap_enclave_id_t :: 
+            (!valid_enclave_id(e) ==> !tap_enclave_metadata_privileged[e]));
+
+  assume tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id;
+
   if (cpu_cache_enabled) {
       call init_cache();
   }
@@ -222,7 +227,8 @@ implementation launch(
   /* VA to PA mapping  */ addr_map        : addr_map_t,
   /* excl vaddr        */ excl_vaddr      : excl_vaddr_t,
   /* excl paddr        */ excl_paddr      : excl_map_t,
-  /* entrypoint.       */ entrypoint      : vaddr_t
+  /* entrypoint.       */ entrypoint      : vaddr_t,
+  /* privileged        */ privileged      : bool
 )
     returns (status : enclave_op_result_t)
 {
@@ -231,15 +237,29 @@ implementation launch(
     var paddr            : wap_addr_t;
     var va               : vaddr_t;
     var cache_conflict   : bool;
+    var launch_enable    : bool;
 
 
-    // ensure cpu mode is valid.
-    if (cpu_enclave_id != tap_null_enc_id) {
+    // ensures cpu mode is valid.
+    launch_enable := (cpu_enclave_id == tap_null_enc_id) || (tap_enclave_metadata_privileged[cpu_enclave_id]);
+    // launch_enable := (cpu_enclave_id == tap_null_enc_id);
+    if (!launch_enable) {
+        status := enclave_op_invalid_arg;
+        return;
+    }
+    
+    // if (cpu_enclave_id != tap_null_enc_id) {
+    //     status := enclave_op_invalid_arg;
+    //     return;
+    // }
+
+    // do not support P-P launch for now
+    if (tap_enclave_metadata_privileged[cpu_enclave_id] && privileged) {
         status := enclave_op_invalid_arg;
         return;
     }
 
-    // ensure eid is valid.
+    // ensures eid is valid.
     if (!valid_enclave_id(eid) || tap_enclave_metadata_valid[eid]) {
         status := enclave_op_invalid_arg;
         return;
@@ -254,7 +274,7 @@ implementation launch(
         return;
     }
 
-    // Ensure none of the paddr's are already exclusive.
+    // Ensures none of the paddr's are already exclusive.
     paddr := k0_wap_addr_t;
     while (LT_wapa(paddr, kmax_wap_addr_t))
         invariant (forall pa : wap_addr_t ::
@@ -346,7 +366,8 @@ implementation launch(
     tap_enclave_metadata_regs[eid]           := kzero_regs_t;
     tap_enclave_metadata_paused[eid]         := false;
     tap_enclave_metadata_cache_conflict[eid] := cache_conflict;
-
+    tap_enclave_metadata_privileged[eid]     := privileged;
+    tap_enclave_metadata_owner_map[eid]      := cpu_enclave_id;
     status := enclave_op_success;
 }
 
@@ -359,25 +380,36 @@ implementation enter(eid: tap_enclave_id_t)
     // no enclave  no enclave id is null.
     // enclave must be valid and not paused.
     // cpu must be ready to execute enclaves.
-    if (!valid_enclave_id(eid)              ||
-        !tap_enclave_metadata_valid[eid]    ||
-        cpu_enclave_id != tap_null_enc_id)
+
+    if ((!valid_enclave_id(eid)) ||
+        (!tap_enclave_metadata_valid[eid]) ||
+        ((cpu_enclave_id != tap_null_enc_id) && (!tap_enclave_metadata_privileged[cpu_enclave_id])) ||
+        (tap_enclave_metadata_owner_map[eid] != cpu_enclave_id))
     {
         status := enclave_op_invalid_arg;
         return;
     }
 
-    status                      := enclave_op_success;
-    // save context.
-    untrusted_regs              := cpu_regs;
-    untrusted_addr_valid        := cpu_addr_valid;
-    untrusted_addr_map          := cpu_addr_map;
-    untrusted_pc                := cpu_pc;
+    status      := enclave_op_success;
+    // save owner context.
+    if (cpu_enclave_id == tap_null_enc_id) {
+        untrusted_pc                := cpu_pc;        
+        untrusted_regs              := cpu_regs;
+        untrusted_addr_valid        := cpu_addr_valid;
+        untrusted_addr_map          := cpu_addr_map;
+    } 
+    else {
+        assert tap_enclave_metadata_valid[cpu_enclave_id];
+        tap_enclave_metadata_pc[cpu_enclave_id]          := cpu_pc;
+        tap_enclave_metadata_regs[cpu_enclave_id]        := cpu_regs;
+        tap_enclave_metadata_addr_valid[cpu_enclave_id]  := cpu_addr_valid;
+        tap_enclave_metadata_addr_map[cpu_enclave_id]    := cpu_addr_map;
+    }
     // restore enclave context.
     cpu_enclave_id              := eid;
+    cpu_pc                      := tap_enclave_metadata_entrypoint[eid];
     cpu_addr_valid              := tap_enclave_metadata_addr_valid[eid];
     cpu_addr_map                := tap_enclave_metadata_addr_map[eid];
-    cpu_pc                      := tap_enclave_metadata_entrypoint[eid];
 }
 
 // -------------------------------------------------------------------- //
@@ -387,27 +419,38 @@ implementation resume(eid: tap_enclave_id_t)
     returns (status : enclave_op_result_t)
 
 {
-    if (!valid_enclave_id(eid)              ||
-        !tap_enclave_metadata_valid[eid]    || 
-        !tap_enclave_metadata_paused[eid]   ||
-        cpu_enclave_id != tap_null_enc_id)
+    if ((!valid_enclave_id(eid)) ||
+        (!tap_enclave_metadata_valid[eid]) ||
+        (!tap_enclave_metadata_paused[eid]) ||
+        ((cpu_enclave_id != tap_null_enc_id) && (!tap_enclave_metadata_privileged[cpu_enclave_id])) ||
+        (tap_enclave_metadata_owner_map[eid] != cpu_enclave_id))
     {
         status := enclave_op_invalid_arg;
         return;
     }
 
+    status := enclave_op_success;
+    // save owner context.
+    if (cpu_enclave_id == tap_null_enc_id) {
+        untrusted_pc                := cpu_pc;        
+        untrusted_regs              := cpu_regs;
+        untrusted_addr_valid        := cpu_addr_valid;
+        untrusted_addr_map          := cpu_addr_map;
+    } 
+    else {
+        assert tap_enclave_metadata_valid[cpu_enclave_id];
+        tap_enclave_metadata_pc[cpu_enclave_id]          := cpu_pc;
+        tap_enclave_metadata_regs[cpu_enclave_id]        := cpu_regs;
+        tap_enclave_metadata_addr_valid[cpu_enclave_id]  := cpu_addr_valid;
+        tap_enclave_metadata_addr_map[cpu_enclave_id]    := cpu_addr_map;
+    }
     // save context.
-    untrusted_regs                   := cpu_regs;
-    untrusted_addr_valid             := cpu_addr_valid;
-    untrusted_addr_map               := cpu_addr_map;
-    untrusted_pc                     := cpu_pc;
     // restore enclave context.
     cpu_enclave_id                   := eid;
-    cpu_addr_valid                   := tap_enclave_metadata_addr_valid[eid];
-    cpu_addr_map                     := tap_enclave_metadata_addr_map[eid];
     cpu_pc                           := tap_enclave_metadata_pc[eid];
     cpu_regs                         := tap_enclave_metadata_regs[eid];
-    status                           := enclave_op_success;
+    cpu_addr_valid                   := tap_enclave_metadata_addr_valid[eid];
+    cpu_addr_map                     := tap_enclave_metadata_addr_map[eid];
 }
 // -------------------------------------------------------------------- //
 // Exit an enclave.                                                     //
@@ -416,7 +459,7 @@ implementation exit()
     returns (status : enclave_op_result_t)
 {
     var eid : tap_enclave_id_t;
-
+    var owner_eid : tap_enclave_id_t;
     if (cpu_enclave_id == tap_null_enc_id) {
         status := enclave_op_failed;
         return;
@@ -430,12 +473,20 @@ implementation exit()
     tap_enclave_metadata_pc[eid]         := tap_enclave_metadata_entrypoint[eid];
     tap_enclave_metadata_paused[eid]     := false;
 
-    cpu_enclave_id := tap_null_enc_id;
-    cpu_regs       := untrusted_regs;
-    cpu_addr_valid := untrusted_addr_valid;
-    cpu_addr_map   := untrusted_addr_map;
-    cpu_pc         := untrusted_pc;
-    status         := enclave_op_success;
+    owner_eid := tap_enclave_metadata_owner_map[eid];
+    cpu_enclave_id := owner_eid;
+    if (owner_eid == tap_null_enc_id) {
+        cpu_pc         := untrusted_pc;
+        cpu_regs       := untrusted_regs;
+        cpu_addr_valid := untrusted_addr_valid;
+        cpu_addr_map   := untrusted_addr_map;
+    } else {
+        cpu_pc         := tap_enclave_metadata_pc[owner_eid];
+        cpu_regs       := tap_enclave_metadata_regs[owner_eid];
+        cpu_addr_valid := tap_enclave_metadata_addr_valid[owner_eid];
+        cpu_addr_map   := tap_enclave_metadata_addr_map[owner_eid];
+    }
+
 }
 
 // -------------------------------------------------------------------- //
@@ -445,6 +496,7 @@ implementation pause()
     returns (status : enclave_op_result_t)
 {
     var eid : tap_enclave_id_t;
+    var owner_eid : tap_enclave_id_t;
 
     if (cpu_enclave_id == tap_null_enc_id) {
         status := enclave_op_failed;
@@ -459,12 +511,19 @@ implementation pause()
     tap_enclave_metadata_pc[eid]         := cpu_pc;
     tap_enclave_metadata_paused[eid]     := true;
 
-    cpu_enclave_id := tap_null_enc_id;
-    cpu_regs       := untrusted_regs;
-    cpu_addr_valid := untrusted_addr_valid;
-    cpu_addr_map   := untrusted_addr_map;
-    cpu_pc         := untrusted_pc;
-    status         := enclave_op_success;
+    owner_eid := tap_enclave_metadata_owner_map[eid];
+    cpu_enclave_id := owner_eid;
+    if (owner_eid == tap_null_enc_id) {
+        cpu_pc         := untrusted_pc;
+        cpu_regs       := untrusted_regs;
+        cpu_addr_valid := untrusted_addr_valid;
+        cpu_addr_map   := untrusted_addr_map;
+    } else {
+        cpu_pc         := tap_enclave_metadata_pc[owner_eid];
+        cpu_regs       := tap_enclave_metadata_regs[owner_eid];
+        cpu_addr_valid := tap_enclave_metadata_addr_valid[owner_eid];
+        cpu_addr_map   := tap_enclave_metadata_addr_map[owner_eid];
+    }
 }
 
 // -------------------------------------------------------------------- //
