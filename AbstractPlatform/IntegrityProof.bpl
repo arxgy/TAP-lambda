@@ -1,4 +1,4 @@
-function uf_load_data(vaddr : vaddr_t, iter : int) : word_t;
+function uf_load_data(i_eid : tap_enclave_id_t, vaddr : vaddr_t, iter : int) : word_t;
 
 // The computation performed by the enclave.
 procedure {:inline 1} EnclaveComputation(iter : int)
@@ -16,6 +16,7 @@ procedure {:inline 1} EnclaveComputation(iter : int)
     var r0, r1  : word_t;
     var rd      : regindex_t;
     var eid     : tap_enclave_id_t;
+    var i_eid   : tap_enclave_id_t; // PE's inspection id 
     var pc_pa   : wap_addr_t;
     var pc_op   : word_t;
     var l_vaddr : vaddr_t;
@@ -41,16 +42,40 @@ procedure {:inline 1} EnclaveComputation(iter : int)
     // load address and value.
     l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
     assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
-    if (tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
-        assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
+
+    // select load target && ensure load validity
+    i_eid := uf_mem_load_eid(cpu_pc, pc_op, r0, r1);
+    if (tap_enclave_metadata_privileged[eid]) {
+        // will this answer be unique/deterministic?
+        assume eid == tap_enclave_metadata_owner_map[i_eid]; 
+    } else {
+        assume eid == i_eid;
+    }
+    
+    // data from NE can also be cached (PIPT)
+    // data from outside cannot be cached
+    if (tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
+        // redundant assertion for pa?
+        assert cpu_owner_map[tap_enclave_metadata_addr_map[i_eid][l_vaddr]] == i_eid;
         havoc way; assume valid_cache_way_index(way);
-        call l_data, excp, hit := load_va(l_vaddr, way);
+        call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
         assert excp == excp_none;
     } else {
         hit := false;
         excp := excp_none;
-        l_data := uf_load_data(l_vaddr, iter);
+        l_data := uf_load_data(i_eid, l_vaddr, iter);
     }
+
+    // if (tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
+    //     assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
+    //     havoc way; assume valid_cache_way_index(way);
+    //     call l_data, excp, hit := load_va(cpu_enclave_id, l_vaddr, way);
+    //     assert excp == excp_none;
+    // } else {
+    //     hit := false;
+    //     excp := excp_none;
+    //     l_data := uf_load_data(l_vaddr, iter);
+    // }
 
     // get data to store to mem.
     s_vaddr := uf_mem_store_vaddr(cpu_pc, pc_op, l_data, r0, r1);
@@ -108,6 +133,8 @@ procedure {:inline 1} IntegrityAdversarialStep(
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
     var status            : enclave_op_result_t;
     var r_addr_valid      : addr_valid_t;
@@ -117,6 +144,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
     var r_container_valid : container_valid_t;
     var r_container_data  : container_data_t;
     var r_entrypoint      : vaddr_t;
+    var r_privileged      : bool;
     var r_vaddr           : vaddr_t;
     var r_valid           : addr_perm_t;
     var r_excp            : exception_t;
@@ -135,7 +163,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
         // launch
         call InitOSMem(r_container_valid, r_container_data);
         call status := launch(r_eid, r_addr_valid, r_addr_map, 
-                              r_excl_vaddr, r_excl_map, r_entrypoint);
+                              r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
         assert (r_eid == eid) ==> (status != enclave_op_success);
     } else if (op == tap_proof_op_enter) {      
         // enter
@@ -156,10 +184,26 @@ procedure {:inline 1} IntegrityAdversarialStep(
         }
     } else if (op == tap_proof_op_exit) {       
         // exit
-        call status := exit();
+        // check mode...
+        if (cpu_enclave_id != tap_null_enc_id && 
+                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
+            // back to PE
+            call status := exit();
+            assert status == enclave_op_success;
+            current_mode := mode_enclave;
+        } else {
+            call status := exit();
+        }
     } else if (op == tap_proof_op_pause) {      
         // pause.
-        call status := pause();
+        if (cpu_enclave_id != tap_null_enc_id && 
+                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
+            call status := pause();
+            assert status == enclave_op_success;
+            current_mode := mode_enclave;
+        } else {
+            call status := pause();
+        }
     } else if (op == tap_proof_op_destroy) {    
         // destroy.
         call status := destroy(r_eid);
@@ -216,27 +260,97 @@ procedure {:inline 1} IntegrityEnclaveStep(
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
-    var status : enclave_op_result_t;
-    assert tap_proof_op_valid_in_enclave(op);
+    var status            : enclave_op_result_t;
+    var p_eid             : tap_enclave_id_t;   // designated by PE
+    var p_regs            : regs_t;
+    var p_addr_valid      : addr_valid_t;
+    var p_addr_map        : addr_map_t;
+    var p_excl_vaddr      : excl_vaddr_t;
+    var p_excl_map        : excl_map_t;
+    var p_container_valid : container_valid_t;
+    var p_container_data  : container_data_t;
+    var p_entrypoint      : vaddr_t;
+    var p_privileged      : bool;
+    var p_vaddr           : vaddr_t;
+    var p_valid           : addr_perm_t;
+    var p_excp            : exception_t;
+    var p_paddr           : wap_addr_t;
+    var p_word            : word_t;
+    var hit               : bool;
+    var way               : cache_way_index_t;
 
     vaddr := k0_vaddr_t;
     paddr := k0_wap_addr_t;
     data := k0_word_t;
 
-    // in enclave-mode:
-    if (op == tap_proof_op_compute) {
-        call vaddr, paddr, data := EnclaveComputation(iter);
-        next_mode := mode_enclave;
-    } else if (op == tap_proof_op_pause) {
-        call status := pause();
-        assert status == enclave_op_success;
-        next_mode := mode_untrusted;
-    } else if (op == tap_proof_op_exit) {
-        call status := exit();
-        assert status == enclave_op_success;
-        next_mode := mode_untrusted;
+    if (tap_enclave_metadata_privileged[cpu_enclave_id]) {
+        if (op == tap_proof_op_launch) {
+            call InitOSMem(p_container_valid, p_container_data);
+            call status := launch (p_eid, paddr_valid, p_addr_map,
+                                   p_excl_vaddr, p_excl_map, p_entrypoint, p_privileged);
+            assert (p_eid == eid) ==> (status != enclave_op_success);
+            next_mode := mode_enclave;
+
+        } else if (op == tap_proof_op_enter) {
+            cpu_regs := p_regs;
+            call status := enter(p_eid);
+            // assert
+            if (status == enclave_op_success) {
+                next_mode := mode_untrusted;
+            } else {
+                next_mode := mode_enclave;
+            }
+
+        } else if (op == tap_proof_op_resume) {
+            call status := resume(p_eid);
+            // assert
+            if (status == enclave_op_success) {
+                next_mode := mode_untrusted;
+            } else {
+                next_mode := mode_enclave;
+            }
+
+        } else if (op == tap_proof_op_exit) {
+            call status := exit();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+
+        } else if (op == tap_proof_op_pause) {
+            // pause itself
+            call status := pause();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+
+        } else if (op == tap_proof_op_destroy) {
+            call status := destroy(p_eid);
+            next_mode := mode_enclave;
+
+        } else if (op == tap_proof_op_compute) {
+            call vaddr, paddr, data := EnclaveComputation(iter);
+            next_mode := mode_enclave;        
+        }
+    } else {
+        assert tap_proof_op_valid_in_enclave(op);
+        // in enclave-mode:
+        if (op == tap_proof_op_compute) {
+            call vaddr, paddr, data := EnclaveComputation(iter);
+            next_mode := mode_enclave;
+
+        } else if (op == tap_proof_op_pause) {
+            call status := pause();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+            
+        } else if (op == tap_proof_op_exit) {
+            call status := exit();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+        }
     }
+
 }
 
 procedure ProveIntegrity()
@@ -263,6 +377,8 @@ procedure ProveIntegrity()
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
     modifies cpu_mem_1;
     modifies cpu_regs_1;
     modifies cpu_pc_1;
@@ -283,6 +399,8 @@ procedure ProveIntegrity()
     modifies tap_enclave_metadata_regs_1;
     modifies tap_enclave_metadata_paused_1;
     modifies tap_enclave_metadata_cache_conflict_1;
+    modifies tap_enclave_metadata_privileged_1;
+    modifies tap_enclave_metadata_owner_map_1;
     modifies cpu_mem_2;
     modifies cpu_regs_2;
     modifies cpu_pc_2;
@@ -303,6 +421,8 @@ procedure ProveIntegrity()
     modifies tap_enclave_metadata_regs_2;
     modifies tap_enclave_metadata_paused_2;
     modifies tap_enclave_metadata_cache_conflict_2;
+    modifies tap_enclave_metadata_privileged_2;
+    modifies tap_enclave_metadata_owner_map_2;
 {
     var eid, r_eid                                    : tap_enclave_id_t;
     var status                                        : enclave_op_result_t;
@@ -312,6 +432,7 @@ procedure ProveIntegrity()
     var e_excl_map                                    : excl_map_t;
     var e_container_data                              : container_data_t;
     var e_entrypoint                                  : vaddr_t;
+    var e_privileged                                  : bool;  
     var e_proof_op, r_proof_op                        : tap_proof_op_t;
     var r_regs                                        : regs_t;
     var current_mode_1, current_mode_2, current_mode  : mode_t;
@@ -327,19 +448,19 @@ procedure ProveIntegrity()
     call RestoreContext_1();
     call current_mode_1 := InitialHavoc();
     call InitOSMem(e_excl_map, e_container_data);
-    call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint);
+    call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint, e_privileged);
     assume status == enclave_op_success;
     call SaveContext_1();
 
-    // trace_2.
+    // // trace_2.
     call RestoreContext_2();
     call current_mode_2 := InitialHavoc();
     call InitOSMem(e_excl_map, e_container_data);
-    call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint);
+    call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint, e_privileged);
     assume status == enclave_op_success;
     call SaveContext_2();
 
-    // sanity check.
+    // // sanity check.
     assert current_mode_1 == mode_untrusted;
     assert current_mode_2 == mode_untrusted;
     current_mode := current_mode_1;
@@ -480,7 +601,11 @@ procedure ProveIntegrity()
             call SaveContext_2();
         } else if (current_mode == mode_enclave) {
             havoc iter;
-            assume tap_proof_op_valid_in_enclave(e_proof_op);
+            if (e_privileged) {
+                assume tap_proof_op_valid_in_privileged(e_proof_op);
+            } else {
+                assume tap_proof_op_valid_in_enclave(e_proof_op);
+            }
 
             // enclave step in trace_1
             call RestoreContext_1();

@@ -43,6 +43,12 @@ var tap_enclave_metadata_paused_2         : tap_enclave_metadata_paused_t;
 var tap_enclave_metadata_cache_conflict_1 : tap_enclave_metadata_cache_conflict_t;
 var tap_enclave_metadata_cache_conflict_2 : tap_enclave_metadata_cache_conflict_t;
 
+var tap_enclave_metadata_privileged_1     : tap_enclave_metadata_privileged_t;
+var tap_enclave_metadata_privileged_2     : tap_enclave_metadata_privileged_t;
+var tap_enclave_metadata_owner_map_1      : tap_enclave_metadata_owner_map_t;
+var tap_enclave_metadata_owner_map_2      : tap_enclave_metadata_owner_map_t;
+
+
 procedure {:inline 1} RestoreContext_1()
     modifies cpu_mem;
     modifies cpu_regs;
@@ -65,6 +71,8 @@ procedure {:inline 1} RestoreContext_1()
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
     cpu_mem                             := cpu_mem_1;
     cpu_regs                            := cpu_regs_1;
@@ -88,6 +96,8 @@ procedure {:inline 1} RestoreContext_1()
     tap_enclave_metadata_regs           := tap_enclave_metadata_regs_1;
     tap_enclave_metadata_paused         := tap_enclave_metadata_paused_1;
     tap_enclave_metadata_cache_conflict := tap_enclave_metadata_cache_conflict_1;
+    tap_enclave_metadata_privileged     := tap_enclave_metadata_privileged_1;
+    tap_enclave_metadata_owner_map      := tap_enclave_metadata_owner_map_1;
 }
 
 procedure {:inline 1} SaveContext_1()
@@ -112,6 +122,8 @@ procedure {:inline 1} SaveContext_1()
     modifies tap_enclave_metadata_regs_1;
     modifies tap_enclave_metadata_paused_1;
     modifies tap_enclave_metadata_cache_conflict_1;
+    modifies tap_enclave_metadata_privileged_1;
+    modifies tap_enclave_metadata_owner_map_1;
 {
     cpu_mem_1                             := cpu_mem;
     cpu_regs_1                            := cpu_regs;
@@ -135,6 +147,8 @@ procedure {:inline 1} SaveContext_1()
     tap_enclave_metadata_regs_1           := tap_enclave_metadata_regs;
     tap_enclave_metadata_paused_1         := tap_enclave_metadata_paused;
     tap_enclave_metadata_cache_conflict_1 := tap_enclave_metadata_cache_conflict;
+    tap_enclave_metadata_privileged_1     := tap_enclave_metadata_privileged;
+    tap_enclave_metadata_owner_map_1      := tap_enclave_metadata_owner_map;
 }
 
 procedure {:inline 2} RestoreContext_2()
@@ -159,6 +173,8 @@ procedure {:inline 2} RestoreContext_2()
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
     cpu_mem                             := cpu_mem_2;
     cpu_regs                            := cpu_regs_2;
@@ -182,6 +198,8 @@ procedure {:inline 2} RestoreContext_2()
     tap_enclave_metadata_regs           := tap_enclave_metadata_regs_2;
     tap_enclave_metadata_paused         := tap_enclave_metadata_paused_2;
     tap_enclave_metadata_cache_conflict := tap_enclave_metadata_cache_conflict_2;
+    tap_enclave_metadata_privileged     := tap_enclave_metadata_privileged_2;
+    tap_enclave_metadata_owner_map      := tap_enclave_metadata_owner_map_2;
 }
 
 procedure {:inline 2} SaveContext_2()
@@ -206,6 +224,8 @@ procedure {:inline 2} SaveContext_2()
     modifies tap_enclave_metadata_regs_2;
     modifies tap_enclave_metadata_paused_2;
     modifies tap_enclave_metadata_cache_conflict_2;
+    modifies tap_enclave_metadata_privileged_2;
+    modifies tap_enclave_metadata_owner_map_2;
 {
     cpu_mem_2                             := cpu_mem;
     cpu_regs_2                            := cpu_regs;
@@ -229,6 +249,8 @@ procedure {:inline 2} SaveContext_2()
     tap_enclave_metadata_regs_2           := tap_enclave_metadata_regs;
     tap_enclave_metadata_paused_2         := tap_enclave_metadata_paused;
     tap_enclave_metadata_cache_conflict_2 := tap_enclave_metadata_cache_conflict;
+    tap_enclave_metadata_privileged_2     := tap_enclave_metadata_privileged;
+    tap_enclave_metadata_owner_map_2      := tap_enclave_metadata_owner_map;
 }
 
 procedure HavocOSMem(excl_map : excl_map_t);
@@ -268,12 +290,18 @@ procedure InitialHavoc()
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_owner_map;
 
     ensures (current_mode == mode_untrusted);
     //----------------------------------------------------------------------//
     // global TAP invariants.                                               //
     //----------------------------------------------------------------------//
     ensures (cpu_enclave_id == tap_null_enc_id);
+    
+    // corner cases, precondition for launch
+    ensures (!tap_enclave_metadata_privileged[tap_null_enc_id]);
+    ensures (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -301,6 +329,7 @@ procedure InitialHavoc()
                 tap_enclave_metadata_valid[e] ==> 
                     cpu_owner_map[tap_enclave_metadata_addr_map[e][tap_enclave_metadata_entrypoint[e]]] == e);
     // CPU/Enclave address map invariants.
+    // mapping & addr_valid sync
     ensures (forall va : vaddr_t :: 
                 (cpu_enclave_id == tap_null_enc_id) ==> 
                     (cpu_addr_map[va] == untrusted_addr_map[va]));
@@ -325,6 +354,9 @@ axiom (forall w : word_t :: valid_regindex(uf_cpu_r1_index(w)));
 axiom (forall w : word_t :: valid_regindex(uf_cpu_r2_index(w)));
 
 function uf_mem_load_vaddr(pc : vaddr_t, op : word_t, r1 : word_t, r2 : word_t) : vaddr_t;
+
+function uf_mem_load_eid (pc : vaddr_t, op : word_t, r1 : word_t, r2 : word_t) : tap_enclave_id_t;
+
 function uf_mem_store_vaddr(pc : vaddr_t, op : word_t, l_data : word_t, r1 : word_t, r2 : word_t) : vaddr_t;
 function uf_mem_store_data(pc : vaddr_t, op : word_t, l_data : word_t, r1 : word_t, r2 : word_t) : word_t;
 function uf_cpu_pc(pc : vaddr_t, op : word_t, l_data : word_t, r1 : word_t, r2 : word_t) : vaddr_t;

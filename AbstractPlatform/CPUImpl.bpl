@@ -436,8 +436,7 @@ implementation resume(eid: tap_enclave_id_t)
         untrusted_regs              := cpu_regs;
         untrusted_addr_valid        := cpu_addr_valid;
         untrusted_addr_map          := cpu_addr_map;
-    } 
-    else {
+    } else {
         assert tap_enclave_metadata_valid[cpu_enclave_id];
         tap_enclave_metadata_pc[cpu_enclave_id]          := cpu_pc;
         tap_enclave_metadata_regs[cpu_enclave_id]        := cpu_regs;
