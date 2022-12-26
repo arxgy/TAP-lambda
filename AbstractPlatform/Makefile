@@ -7,8 +7,14 @@ endif
 BOOGIE := boogie
 BOOGIEOPT:=/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=0 /errorLimit:1 $(BOOGIESMOKE) \
 					 /traceverify \
-					 /proverLog:prover.log \
-					#  /proc:initialize_tap
+					 /trace	\
+					 /tracePOs \
+					 /printModel:2 \
+					 /printModelToFile:log/model.log \
+					 /errorTrace:2 \
+					 /proverLog:log/prover.log \
+					#  /break \
+					 #  /proc:InitialHavoc
 # /traceverify
 # /errorTrace
 COMMON=../Common
@@ -43,6 +49,7 @@ cpu: $(CPU_TARGET)
 intiprf: $(INTEGRITY_PROOF_TARGET)
 memconf: $(MEM_CONFIDENTIALITY_PROOF_TARGET)
 measurepf: $(MEASUREMENT_PROOF_TARGET)
+cmnpf : $(COMMON_PROOF_TARGET)
 
 $(CPU_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CPU_IMPL_FILES)
 	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
@@ -73,7 +80,18 @@ $(TEMP_PROOF_TARGET):  $(TEMP_PROOF_FILES) $(COMMON_PROOF_FILES) $(CPU_FILES) $(
 
 
 
+
 clean:
 	rm -f build/*.xml
 
-.PHONY: clean
+cut:
+	sed -n '/peep-hole/,$$p' log/run.log > log/peephole.log
+	sed -n -e'/catch/,$$p' log/run.log > log/catch.log	
+	sed '/passive/,$$d' log/catch.log > log/onlyCatch.log
+	sed -n -e'/z3/,$$p' log/peephole.log > log/result.log	
+	sed -i 's/#AT#/@/g' log/run.log 
+	sed -i 's/#AT#/@/g' log/peephole.log
+	rm log/catch.log
+
+
+.PHONY: clean, cut

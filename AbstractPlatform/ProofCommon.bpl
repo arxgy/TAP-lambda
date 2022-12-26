@@ -16,14 +16,6 @@ var cache_valid_map_1                     : cache_valid_map_t;
 var cache_valid_map_2                     : cache_valid_map_t;
 var cache_tag_map_1                       : cache_tag_map_t;
 var cache_tag_map_2                       : cache_tag_map_t;
-var untrusted_addr_valid_1                : addr_valid_t;
-var untrusted_addr_valid_2                : addr_valid_t;
-var untrusted_addr_map_1                  : addr_map_t;
-var untrusted_addr_map_2                  : addr_map_t;
-var untrusted_regs_1                      : regs_t;
-var untrusted_regs_2                      : regs_t;
-var untrusted_pc_1                        : vaddr_t;
-var untrusted_pc_2                        : vaddr_t;
 var tap_enclave_metadata_valid_1          : tap_enclave_metadata_valid_t;
 var tap_enclave_metadata_valid_2          : tap_enclave_metadata_valid_t;
 var tap_enclave_metadata_addr_map_1       : tap_enclave_metadata_addr_map_t;
@@ -58,10 +50,6 @@ procedure {:inline 1} RestoreContext_1()
     modifies cpu_addr_map;
     modifies cpu_owner_map;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
-    modifies untrusted_addr_map;
-    modifies untrusted_regs;
-    modifies untrusted_pc;
     modifies tap_enclave_metadata_valid;
     modifies tap_enclave_metadata_addr_map;
     modifies tap_enclave_metadata_addr_valid;
@@ -83,10 +71,6 @@ procedure {:inline 1} RestoreContext_1()
     cpu_owner_map                       := cpu_owner_map_1;
     cache_valid_map                     := cache_valid_map_1;
     cache_tag_map                       := cache_tag_map_1;
-    untrusted_addr_valid                := untrusted_addr_valid_1;
-    untrusted_addr_map                  := untrusted_addr_map_1;
-    untrusted_regs                      := untrusted_regs_1;
-    untrusted_pc                        := untrusted_pc_1;
     tap_enclave_metadata_valid          := tap_enclave_metadata_valid_1;
     tap_enclave_metadata_addr_map       := tap_enclave_metadata_addr_map_1;
     tap_enclave_metadata_addr_valid     := tap_enclave_metadata_addr_valid_1;
@@ -109,10 +93,6 @@ procedure {:inline 1} SaveContext_1()
     modifies cpu_addr_map_1;
     modifies cpu_owner_map_1;
     modifies cache_valid_map_1, cache_tag_map_1;
-    modifies untrusted_addr_valid_1;
-    modifies untrusted_addr_map_1;
-    modifies untrusted_regs_1;
-    modifies untrusted_pc_1;
     modifies tap_enclave_metadata_valid_1;
     modifies tap_enclave_metadata_addr_map_1;
     modifies tap_enclave_metadata_addr_valid_1;
@@ -134,10 +114,6 @@ procedure {:inline 1} SaveContext_1()
     cpu_owner_map_1                       := cpu_owner_map;
     cache_valid_map_1                     := cache_valid_map;
     cache_tag_map_1                       := cache_tag_map;
-    untrusted_addr_valid_1                := untrusted_addr_valid;
-    untrusted_addr_map_1                  := untrusted_addr_map;
-    untrusted_regs_1                      := untrusted_regs;
-    untrusted_pc_1                        := untrusted_pc;
     tap_enclave_metadata_valid_1          := tap_enclave_metadata_valid;
     tap_enclave_metadata_addr_map_1       := tap_enclave_metadata_addr_map;
     tap_enclave_metadata_addr_valid_1     := tap_enclave_metadata_addr_valid;
@@ -160,10 +136,6 @@ procedure {:inline 2} RestoreContext_2()
     modifies cpu_addr_map;
     modifies cpu_owner_map;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
-    modifies untrusted_addr_map;
-    modifies untrusted_regs;
-    modifies untrusted_pc;
     modifies tap_enclave_metadata_valid;
     modifies tap_enclave_metadata_addr_map;
     modifies tap_enclave_metadata_addr_valid;
@@ -185,10 +157,6 @@ procedure {:inline 2} RestoreContext_2()
     cpu_owner_map                       := cpu_owner_map_2;
     cache_valid_map                     := cache_valid_map_2;
     cache_tag_map                       := cache_tag_map_2;
-    untrusted_addr_valid                := untrusted_addr_valid_2;
-    untrusted_addr_map                  := untrusted_addr_map_2;
-    untrusted_regs                      := untrusted_regs_2;
-    untrusted_pc                        := untrusted_pc_2;
     tap_enclave_metadata_valid          := tap_enclave_metadata_valid_2;
     tap_enclave_metadata_addr_map       := tap_enclave_metadata_addr_map_2;
     tap_enclave_metadata_addr_valid     := tap_enclave_metadata_addr_valid_2;
@@ -211,10 +179,6 @@ procedure {:inline 2} SaveContext_2()
     modifies cpu_addr_map_2;
     modifies cpu_owner_map_2;
     modifies cache_valid_map_2, cache_tag_map_2;
-    modifies untrusted_addr_valid_2;
-    modifies untrusted_addr_map_2;
-    modifies untrusted_regs_2;
-    modifies untrusted_pc_2;
     modifies tap_enclave_metadata_valid_2;
     modifies tap_enclave_metadata_addr_map_2;
     modifies tap_enclave_metadata_addr_valid_2;
@@ -236,10 +200,6 @@ procedure {:inline 2} SaveContext_2()
     cpu_owner_map_2                       := cpu_owner_map;
     cache_valid_map_2                     := cache_valid_map;
     cache_tag_map_2                       := cache_tag_map;
-    untrusted_addr_valid_2                := untrusted_addr_valid;
-    untrusted_addr_map_2                  := untrusted_addr_map;
-    untrusted_regs_2                      := untrusted_regs;
-    untrusted_pc_2                        := untrusted_pc;
     tap_enclave_metadata_valid_2          := tap_enclave_metadata_valid;
     tap_enclave_metadata_addr_map_2       := tap_enclave_metadata_addr_map;
     tap_enclave_metadata_addr_valid_2     := tap_enclave_metadata_addr_valid;
@@ -277,10 +237,6 @@ procedure InitialHavoc()
     modifies cpu_addr_map;
     modifies cpu_owner_map;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
-    modifies untrusted_addr_map;
-    modifies untrusted_regs;
-    modifies untrusted_pc;
     modifies tap_enclave_metadata_valid;
     modifies tap_enclave_metadata_addr_map;
     modifies tap_enclave_metadata_addr_valid;
@@ -301,6 +257,10 @@ procedure InitialHavoc()
     // corner cases, precondition for launch
     ensures (!tap_enclave_metadata_privileged[tap_null_enc_id]);
     ensures (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
+    // cut branches
+    ensures (forall e : tap_enclave_id_t ::
+                tap_enclave_metadata_valid[e] ==> 
+                    !tap_enclave_metadata_privileged[e]);
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
@@ -308,8 +268,17 @@ procedure InitialHavoc()
     // current pc invariants
     ensures (tap_addr_perm_x(cpu_addr_valid[cpu_pc]));
     ensures (cpu_owner_map[cpu_addr_map[cpu_pc]] == cpu_enclave_id);
+
     // enclave invariants.
-    ensures (forall e : tap_enclave_id_t :: !valid_enclave_id(e) ==> !tap_enclave_metadata_valid[e]);
+    ensures tap_enclave_metadata_valid[tap_null_enc_id];
+    ensures (forall e : tap_enclave_id_t :: 
+                !special_enclave_id(e) ==> 
+                    !tap_enclave_metadata_valid[e]);
+
+    // ensures (forall e : tap_enclave_id_t :: 
+    //             !valid_enclave_id(e) ==> 
+    //                 !tap_enclave_metadata_valid[e]);
+
     ensures (forall e : tap_enclave_id_t ::
                 tap_enclave_metadata_valid[e] ==> 
                     tap_addr_perm_x(tap_enclave_metadata_addr_valid[e][tap_enclave_metadata_pc[e]]));
@@ -328,20 +297,18 @@ procedure InitialHavoc()
     ensures (forall e : tap_enclave_id_t ::
                 tap_enclave_metadata_valid[e] ==> 
                     cpu_owner_map[tap_enclave_metadata_addr_map[e][tap_enclave_metadata_entrypoint[e]]] == e);
+    
+    // for those valid & active enclave when init, its owner is OS by default
+    ensures (forall e : tap_enclave_id_t ::
+                tap_enclave_metadata_valid[e] ==> 
+                    tap_enclave_metadata_owner_map[e] == tap_null_enc_id);
+    
     // CPU/Enclave address map invariants.
     // mapping & addr_valid sync
     ensures (forall va : vaddr_t :: 
-                (cpu_enclave_id == tap_null_enc_id) ==> 
-                    (cpu_addr_map[va] == untrusted_addr_map[va]));
+                (cpu_addr_map[va] == tap_enclave_metadata_addr_map[cpu_enclave_id][va]));
     ensures (forall va : vaddr_t :: 
-                (cpu_enclave_id == tap_null_enc_id) ==> 
-                    tap_addr_perm_eq(cpu_addr_valid[va], untrusted_addr_valid[va]));
-    ensures (forall va : vaddr_t :: 
-                (cpu_enclave_id != tap_null_enc_id) ==> 
-                    (cpu_addr_map[va] == tap_enclave_metadata_addr_map[cpu_enclave_id][va]));
-    ensures (forall va : vaddr_t :: 
-                (cpu_enclave_id != tap_null_enc_id) ==> 
-                    tap_addr_perm_eq(cpu_addr_valid[va], tap_enclave_metadata_addr_valid[cpu_enclave_id][va]));
+                (tap_addr_perm_eq(cpu_addr_valid[va], tap_enclave_metadata_addr_valid[cpu_enclave_id][va])));
 
 
 

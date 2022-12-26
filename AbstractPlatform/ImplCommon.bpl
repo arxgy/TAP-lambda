@@ -55,13 +55,12 @@ implementation InitialHavoc()
     var repl_way          : cache_way_index_t;
     var done              : bool;
     var hit               : bool;
-
+    
     call initialize_tap();
     current_mode := mode_untrusted;
     // and loop will run for a few iterations.
     done := false;
-
-    while (!done)
+    while (!done && exestep < 1)
         // CPU invariants.
         invariant (done ==> (cpu_enclave_id == tap_null_enc_id));
         // current pc invariants

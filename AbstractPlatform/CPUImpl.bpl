@@ -33,7 +33,8 @@ implementation initialize_tap()
   assume (forall pa : wap_addr_t :: cpu_owner_map[pa] == tap_null_enc_id);
   havoc tap_enclave_metadata_valid;
   assume (tap_enclave_metadata_valid[tap_null_enc_id]);
-  assume (forall e : tap_enclave_id_t :: !tap_enclave_metadata_valid[e]);
+  assume (forall e : tap_enclave_id_t :: 
+            !valid_enclave_id(e) ==> !tap_enclave_metadata_valid[e]);
   // and that the PC is in sane state.
   assume (tap_addr_perm_x(cpu_addr_valid[cpu_pc]));
   assume (cpu_owner_map[cpu_addr_map[cpu_pc]] == cpu_enclave_id);
@@ -258,11 +259,6 @@ implementation launch(
         return;
     }
     
-    // if (cpu_enclave_id != tap_null_enc_id) {
-    //     status := enclave_op_invalid_arg;
-    //     return;
-    // }
-
     // do not support P-P launch for now
     if (tap_enclave_metadata_privileged[cpu_enclave_id] && privileged) {
         status := enclave_op_invalid_arg;
