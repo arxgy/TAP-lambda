@@ -142,7 +142,8 @@ procedure {:inline 1} IntegrityAdversarialStep(
     // the "default" value which may be overwritten by destroy.
     enclave_dead := false;
 
-    // cut branches
+    // cut branches: 
+    //  OS cannot launch other PE
     assume !r_privileged;
     // assertions
 
@@ -154,7 +155,8 @@ procedure {:inline 1} IntegrityAdversarialStep(
         call status := launch(r_eid, r_addr_valid, r_addr_map, 
                               r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
         assert (r_eid == eid) ==> (status != enclave_op_success);
-    } else if (op == tap_proof_op_enter) {      
+    } 
+    else if (op == tap_proof_op_enter) {      
         // enter
         cpu_regs := r_regs;
         call status := enter(r_eid);
@@ -164,64 +166,70 @@ procedure {:inline 1} IntegrityAdversarialStep(
             current_mode := mode_enclave; 
         }
     } 
-    // else if (op == tap_proof_op_resume) {     
-    //     // resume
-    //     call status := resume(r_eid);
-    //     // mode == mode_enclave means we are in trace_2.
-    //     assert (mode == mode_enclave ==> status == enclave_op_success);
-    //     if (status == enclave_op_success && r_eid == eid) { 
-    //         current_mode := mode_enclave; 
-    //     }
-    // } else if (op == tap_proof_op_exit) {       
-    //     // exit
-    //     // check mode...
-    //     if (cpu_enclave_id != tap_null_enc_id && 
-    //             tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
-    //         // back to PE
-    //         call status := exit();
-    //         assert status == enclave_op_success;
-    //         current_mode := mode_enclave;
-    //     } else {
-    //         call status := exit();
-    //     }
-    // } else if (op == tap_proof_op_pause) {      
-    //     // pause.
-    //     if (cpu_enclave_id != tap_null_enc_id && 
-    //             tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
-    //         call status := pause();
-    //         assert status == enclave_op_success;
-    //         current_mode := mode_enclave;
-    //     } else {
-    //         call status := pause();
-    //     }
-    // } else if (op == tap_proof_op_destroy) {    
-    //     // destroy.
-    //     call status := destroy(r_eid);
-    //     if (r_eid == eid && status == enclave_op_success) {
-    //         enclave_dead := true;
-    //     }
-    // } else if (op == tap_proof_op_release) {
-    //     call status := release_blocked_memory(r_bmap);
-    // } else if (op == tap_proof_op_block) {
-    //     call status := block_memory_region(r_bmap);
-    // } else if (op == tap_proof_op_compute) {    
-    //     // some adversarial computation
-    //     if (*) {
-    //         havoc r_vaddr, r_word;
-    //         havoc way; assume valid_cache_way_index(way);
-    //         call r_excp, hit := store_va(r_vaddr, r_word, way);
-    //     } else if (*) {
-    //         havoc cpu_regs, cpu_pc;
-    //     } else if (*) {
-    //         // update "page" table map.
-    //         havoc r_vaddr, r_paddr, r_valid;
-    //         cpu_addr_valid[r_vaddr] := r_valid;
-    //         cpu_addr_map[r_vaddr] := r_paddr;
-    //     } else if (*) {
-    //         havoc r_vaddr, r_paddr, r_valid;
-    //         call status := set_enclave_addr_map(r_eid, r_vaddr, r_valid, r_paddr);
-    //     }
-    // }
+    else if (op == tap_proof_op_resume) {     
+        // resume
+        call status := resume(r_eid);
+        // mode == mode_enclave means we are in trace_2.
+        assert (mode == mode_enclave ==> status == enclave_op_success);
+        if (status == enclave_op_success && r_eid == eid) { 
+            current_mode := mode_enclave; 
+        }
+    }
+    else if (op == tap_proof_op_exit) {       
+        // exit
+        // check mode...
+        if (cpu_enclave_id != tap_null_enc_id && 
+                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
+            // back to PE
+            call status := exit();
+            assert status == enclave_op_success;
+            current_mode := mode_enclave;
+        } else {
+            call status := exit();
+        }
+    } 
+    else if (op == tap_proof_op_pause) {      
+        // pause: back to PE / else
+        if (cpu_enclave_id != tap_null_enc_id && 
+                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
+            call status := pause();
+            assert status == enclave_op_success;
+            current_mode := mode_enclave;
+        } else {
+            call status := pause();
+        }
+    }
+    else if (op == tap_proof_op_destroy) {    
+        // destroy.
+        call status := destroy(r_eid);
+        if (r_eid == eid && status == enclave_op_success) {
+            enclave_dead := true;
+        }
+    } 
+    else if (op == tap_proof_op_release) {
+        call status := release_blocked_memory(r_bmap);
+    } 
+    else if (op == tap_proof_op_block) {
+        call status := block_memory_region(r_bmap);
+    } 
+    else if (op == tap_proof_op_compute) {    
+        // some adversarial computation
+        if (*) {
+            havoc r_vaddr, r_word;
+            havoc way; assume valid_cache_way_index(way);
+            call r_excp, hit := store_va(r_vaddr, r_word, way);
+        } else if (*) {
+            havoc cpu_regs, cpu_pc;
+        } else if (*) {
+            // update "page" table map.
+            havoc r_vaddr, r_paddr, r_valid;
+            cpu_addr_valid[r_vaddr] := r_valid;
+            cpu_addr_map[r_vaddr] := r_paddr;
+        } else if (*) {
+            havoc r_vaddr, r_paddr, r_valid;
+            call status := set_enclave_addr_map(r_eid, r_vaddr, r_valid, r_paddr);
+        }
+    }
 }
 
 procedure {:inline 1} IntegrityEnclaveStep(
@@ -543,10 +551,10 @@ procedure ProveIntegrity()
         invariant (forall ri : regindex_t :: !enclave_dead ==>
                     (tap_enclave_metadata_regs_1[eid][ri] == tap_enclave_metadata_regs_2[eid][ri]));
 
-        // // the two privilege maps are the same
+        // // the two privilege maps are the same? weak
         // invariant (forall e : tap_enclave_id_t :: 
         //             (tap_enclave_metadata_privileged_1[e] == tap_enclave_metadata_privileged_2[e]));
-        // the two enclave ownermap are the same?
+        // the two enclave ownermap are the same? weak
         
         // invariants about the states of the CPUs.
         // are we in attacker mode?
