@@ -1,0 +1,9 @@
+.history/
+help/
+*.log
+*.out
+*.dot
+*.xml
+AbstractPlatform/backup
+AbstractPlatform/boogie2.5
+Sanctum/backup

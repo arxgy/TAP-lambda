@@ -21,7 +21,8 @@ implementation init_cache()
     ind := ind + 1;
   }
 }
-
+// hit:  find a hit way
+// miss: insert into repl_way
 implementation query_cache(pa : wap_addr_t, repl_way : cache_way_index_t)
   returns (hit : bool, hit_way : cache_way_index_t)
 {

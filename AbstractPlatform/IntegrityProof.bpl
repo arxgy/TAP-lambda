@@ -2,7 +2,8 @@ function uf_load_data(i_eid : tap_enclave_id_t, vaddr : vaddr_t, iter : int) : w
 
 // The computation performed by the enclave.
 procedure {:inline 1} EnclaveComputation(iter : int)
-    returns (vaddr : vaddr_t, paddr : wap_addr_t, data : word_t)
+    // returns (vaddr : vaddr_t, paddr : wap_addr_t, data : word_t)
+    returns (ret_r0 : word_t, ret_r1 : word_t)
 
     modifies cpu_mem;
     modifies cpu_regs;
@@ -27,6 +28,13 @@ procedure {:inline 1} EnclaveComputation(iter : int)
     var hit     : bool;
     var way     : cache_way_index_t;
 
+
+    // debug assignments
+    // vaddr := k0_vaddr_t;
+    // paddr := k0_wap_addr_t;
+    // data  := k0_word_t;
+    // debug assignments end
+
     eid := cpu_enclave_id;
     pc_pa := cpu_addr_map[cpu_pc];
     assert tap_enclave_metadata_addr_excl[eid][cpu_pc];
@@ -43,54 +51,57 @@ procedure {:inline 1} EnclaveComputation(iter : int)
     r0 := cpu_regs[uf_cpu_r0_index(pc_op)];
     r1 := cpu_regs[uf_cpu_r1_index(pc_op)];
 
+    ret_r0 := r0;
+    ret_r1 := r1;
+
     // load address and value.
-    l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
-    assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+    // l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
+    // assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
 
-    // select load target && ensure load validity
-    i_eid := uf_mem_load_eid(cpu_pc, pc_op, r0, r1);
-    if (tap_enclave_metadata_privileged[eid]) {
-        assume tap_enclave_metadata_owner_map[i_eid] == eid; 
-    } else {
-        assume i_eid == eid;
-    }
+    // // select load target && ensure load validity
+    // i_eid := uf_mem_load_eid(cpu_pc, pc_op, r0, r1);
+    // if (tap_enclave_metadata_privileged[eid]) {
+    //     assume tap_enclave_metadata_owner_map[i_eid] == eid; 
+    // } else {
+    //     assume i_eid == eid;
+    // }
     
-    // data from NE can also be cached (PIPT)
-    // data from outside cannot be cached
-    if (tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
-        assert cpu_owner_map[tap_enclave_metadata_addr_map[i_eid][l_vaddr]] == i_eid;
-        havoc way; assume valid_cache_way_index(way);
-        call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
-        assert excp == excp_none;
-    } else {
-        hit := false;
-        excp := excp_none;
-        l_data := uf_load_data(i_eid, l_vaddr, iter);
-    }
+    // // data from NE can also be cached (PIPT)
+    // // data from outside cannot be cached
+    // if (tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
+    //     assert cpu_owner_map[tap_enclave_metadata_addr_map[i_eid][l_vaddr]] == i_eid;
+    //     havoc way; assume valid_cache_way_index(way);
+    //     call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
+    //     assert excp == excp_none;
+    // } else {
+    //     hit := false;
+    //     excp := excp_none;
+    //     l_data := uf_load_data(i_eid, l_vaddr, iter);
+    // }
 
-    // get data to store to mem.
-    s_vaddr := uf_mem_store_vaddr(cpu_pc, pc_op, l_data, r0, r1);
-    s_data := uf_mem_store_data(cpu_pc, pc_op, l_data, r0, r1);
-    vaddr := s_vaddr;
-    paddr := cpu_addr_map[s_vaddr];
-    data := s_data;
-    // update mem.
-    assume tap_addr_perm_w(cpu_addr_valid[s_vaddr]);
-    if (tap_enclave_metadata_addr_excl[eid][s_vaddr]) {
-        assert (cpu_owner_map[cpu_addr_map[s_vaddr]] == eid);
-        havoc way; assume valid_cache_way_index(way);
-        call excp, hit := store_va(s_vaddr, s_data, way);
-        assert excp == excp_none;
-    }
+    // // get data to store to mem.
+    // s_vaddr := uf_mem_store_vaddr(cpu_pc, pc_op, l_data, r0, r1);
+    // s_data := uf_mem_store_data(cpu_pc, pc_op, l_data, r0, r1);
+    // vaddr := s_vaddr;
+    // paddr := cpu_addr_map[s_vaddr];
+    // data := s_data;
+    // // update mem.
+    // assume tap_addr_perm_w(cpu_addr_valid[s_vaddr]);
+    // if (tap_enclave_metadata_addr_excl[eid][s_vaddr]) {
+    //     assert (cpu_owner_map[cpu_addr_map[s_vaddr]] == eid);
+    //     havoc way; assume valid_cache_way_index(way);
+    //     call excp, hit := store_va(s_vaddr, s_data, way);
+    //     assert excp == excp_none;
+    // }
 
-    // update pc.
-    cpu_pc := uf_cpu_pc(cpu_pc, pc_op, l_data, r0, r1);
-    assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
-    assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
-    assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
-    // update regs.
-    rd := uf_cpu_r2_index(pc_op);
-    cpu_regs[rd] := uf_cpu_result(cpu_pc, pc_op, l_data, r0, r1);
+    // // update pc.
+    // cpu_pc := uf_cpu_pc(cpu_pc, pc_op, l_data, r0, r1);
+    // assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
+    // assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
+    // assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
+    // // update regs.
+    // rd := uf_cpu_r2_index(pc_op);
+    // cpu_regs[rd] := uf_cpu_result(cpu_pc, pc_op, l_data, r0, r1);
 }
 
 procedure {:inline 1} IntegrityAdversarialStep(
@@ -225,7 +236,8 @@ procedure {:inline 1} IntegrityEnclaveStep(
     /* what operation?  */  op : tap_proof_op_t, 
     /* which iteration? */  iter : int
 )
-    returns (next_mode : mode_t, vaddr : vaddr_t, paddr : wap_addr_t, data : word_t)
+    returns (next_mode : mode_t, vaddr : vaddr_t, paddr : wap_addr_t, data : word_t,
+             r0 : word_t, r1 : word_t)
 
     modifies cpu_mem;
     modifies cpu_regs;
@@ -267,6 +279,13 @@ procedure {:inline 1} IntegrityEnclaveStep(
     var hit               : bool;
     var way               : cache_way_index_t;
 
+    // debug 
+    // lvaddr := k0_vaddr_t;
+    r0 := k0_word_t;
+    r1 := k0_word_t;    
+
+    // debug end
+    
     eid   := cpu_enclave_id;
     vaddr := k0_vaddr_t;
     paddr := k0_wap_addr_t;
@@ -287,7 +306,8 @@ procedure {:inline 1} IntegrityEnclaveStep(
         assert status == enclave_op_success;
         next_mode := mode_untrusted;
     } else if (op == tap_proof_op_compute) {
-        call vaddr, paddr, data := EnclaveComputation(iter);
+        // call vaddr, paddr, data, lvaddr := EnclaveComputation(iter);
+        call r0, r1 := EnclaveComputation(iter);
         next_mode := mode_enclave;      
     }
 
@@ -438,9 +458,11 @@ procedure ProveIntegrity()
     var paddr_1, paddr_2                              : wap_addr_t;
     var data_1, data_2                                : word_t;
     var iter                                          : int;
-    var exestep : int;
 
-
+    // debug variables
+    var pc_op_1, pc_op_2    : word_t;
+    var lvaddr_1, lvaddr_2  : vaddr_t;
+    var r0_1, r0_2, r1_1, r1_2 : word_t;
     // cut branches: 
     //  launch PE
     assume !e_privileged;
@@ -480,13 +502,14 @@ procedure ProveIntegrity()
         // global TAP invariants.                                               //
         //----------------------------------------------------------------------//
         
+        // privilege relationship: OS & eid
         invariant !tap_enclave_metadata_privileged_1[tap_null_enc_id];
         invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
         invariant tap_enclave_metadata_privileged_1[eid] == tap_enclave_metadata_privileged_2[eid];
-        // cut branches: only eid privileged / all non-privileged
+        
+        // privileged relationship: all NE
         // invariant !tap_enclave_metadata_privileged_1[eid];
         // invariant !tap_enclave_metadata_privileged_2[eid];
-
         invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==>
                     (!tap_enclave_metadata_privileged_1[e]));
         invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==>
@@ -675,16 +698,18 @@ procedure ProveIntegrity()
 
             // enclave step in trace_1
             call RestoreContext_1();
-            call current_mode, vaddr_1, paddr_1, data_1 := IntegrityEnclaveStep(
+            call current_mode, vaddr_1, paddr_1, data_1, r0_1, r1_1 := IntegrityEnclaveStep(
                                                             e_proof_op, iter);
             call SaveContext_1();
 
             // enclave step in trace_2
             call RestoreContext_2();
-            call current_mode, vaddr_2, paddr_2, data_2 := IntegrityEnclaveStep(
+            call current_mode, vaddr_2, paddr_2, data_2, r0_2, r1_2 := IntegrityEnclaveStep(
                                                             e_proof_op, iter);
             call SaveContext_2();
 
+            assert r0_1 == r0_2;
+            assert r1_1 == r1_2;
             assert vaddr_1 == vaddr_2;
             assert data_1 == data_2;
         }

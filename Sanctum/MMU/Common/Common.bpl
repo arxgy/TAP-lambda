@@ -36,7 +36,7 @@ function {:inline} pte1valid(mem: mem_t, base: ppn_t, vpn1: vpn1_t) : bool
 function {:inline} is_mapping_valid(mem: mem_t, base: ppn_t, vaddr: vaddr_t ) : bool
 {
     // TODO: check for permissions. Handle big pages.
-    // Read the first-level, ensure its valid.
+    // Read the first-level, ensures its valid.
     bv2bool(pte2valid(load_pte1(mem, base, vaddr2vpn1(vaddr)))) &&
     // Read the second-level, return its valid.
     bv2bool(pte2valid(
@@ -50,7 +50,7 @@ function {:inline} is_mapping_valid(mem: mem_t, base: ppn_t, vaddr: vaddr_t ) : 
 function {:inline} is_translation_valid(mem: mem_t, base: ppn_t, access : riscv_access_t, vaddr: vaddr_t ) : bool
 {
     // TODO: check for permissions. Handle big pages.
-    // Read the first-level, ensure its valid.
+    // Read the first-level, ensures its valid.
     bv2bool(pte2valid(load_pte1(mem, base, vaddr2vpn1(vaddr)))) &&
     // Read the second-level, return its valid.
     bv2bool(pte2valid(

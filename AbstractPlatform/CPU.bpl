@@ -129,9 +129,8 @@ procedure {:inline 1} set_enclave_addr_map(
    modifies tap_enclave_metadata_addr_map;
 {
     // default values.
-    if (cpu_enclave_id == tap_null_enc_id &&
-        tap_enclave_metadata_valid[eid]) 
-    {
+    if (tap_enclave_metadata_owner_map[eid] == cpu_enclave_id && 
+        tap_enclave_metadata_valid[eid]) {
         if (!tap_enclave_metadata_addr_excl[eid][va]) {
             tap_enclave_metadata_addr_valid[eid][va] := valid;
             tap_enclave_metadata_addr_map[eid][va] := paddr;
@@ -140,6 +139,17 @@ procedure {:inline 1} set_enclave_addr_map(
         }
     }
     status := enclave_op_invalid_arg;
+    // if (cpu_enclave_id == tap_null_enc_id &&
+    //     tap_enclave_metadata_valid[eid]) 
+    // {
+    //     if (!tap_enclave_metadata_addr_excl[eid][va]) {
+    //         tap_enclave_metadata_addr_valid[eid][va] := valid;
+    //         tap_enclave_metadata_addr_map[eid][va] := paddr;
+    //         status := enclave_op_success;
+    //         return;
+    //     }
+    // }
+    // status := enclave_op_invalid_arg;
 }
 
 procedure {:inline 1} fetch_va(vaddr : vaddr_t, repl_way : cache_way_index_t)
