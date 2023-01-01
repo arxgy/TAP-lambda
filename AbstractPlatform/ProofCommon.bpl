@@ -226,7 +226,7 @@ procedure InitOSMem(container_valid : container_valid_t, container_data : contai
                         then cpu_mem[p] == container_data[p]
                         else cpu_mem[p] == old(cpu_mem)[p]);
 
-procedure InitialHavoc()
+procedure InitialHavoc(eid: tap_enclave_id_t)
     returns (current_mode : mode_t);
 
     modifies cpu_mem;
@@ -272,9 +272,14 @@ procedure InitialHavoc()
     // enclave invariants.
     ensures tap_enclave_metadata_valid[tap_null_enc_id];
     ensures (forall e : tap_enclave_id_t :: 
-                !special_enclave_id(e) ==> 
-                    !tap_enclave_metadata_valid[e]);
+                special_enclave_id(e) ==> !tap_enclave_metadata_valid[e]);
+    // randomness control: differrent traces have same ownermap at beginning.
+    // cut branches: those ensures will cost a lot
 
+    // ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+    //             (tap_enclave_metadata_valid[tap_enclave_metadata_owner_map[e]]));
+    // ensures (forall e : tap_enclave_id_t :: 
+    //             (tap_enclave_metadata_owner_map[e] != eid));
     // ensures (forall e : tap_enclave_id_t :: 
     //             !valid_enclave_id(e) ==> 
     //                 !tap_enclave_metadata_valid[e]);

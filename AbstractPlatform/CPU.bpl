@@ -511,7 +511,23 @@ procedure enter(eid: tap_enclave_id_t)
     ensures (status == enclave_op_success) ==> (cpu_addr_valid == tap_enclave_metadata_addr_valid[eid]);
     ensures (status == enclave_op_success) ==> (cpu_addr_map == tap_enclave_metadata_addr_map[eid]);
 
-
+    // additional features: 
+    // ensures eid != old(cpu_enclave_id);
+    //--------------------------------------------------------------------------------------//
+    // these postconditions say that only entry [old(cpu_enclave_id)] changes in the maps.  //
+    //--------------------------------------------------------------------------------------//
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_pc[e] == old(tap_enclave_metadata_pc)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_regs[e] == old(tap_enclave_metadata_regs)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_addr_valid[e] == old(tap_enclave_metadata_addr_valid)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_addr_map[e] == old(tap_enclave_metadata_addr_map)[e]));        
 // -------------------------------------------------------------------- //
 // Resume an enclave                                                    //
 // -------------------------------------------------------------------- //
@@ -586,6 +602,21 @@ procedure resume(eid: tap_enclave_id_t)
     ensures (status == enclave_op_success) ==> (cpu_regs == tap_enclave_metadata_regs[eid]);
     ensures (status == enclave_op_success) ==> (cpu_addr_valid == tap_enclave_metadata_addr_valid[eid]);
     ensures (status == enclave_op_success) ==> (cpu_addr_map == tap_enclave_metadata_addr_map[eid]);
+    //--------------------------------------------------------------------------------------//
+    // these postconditions say that only entry [old(cpu_enclave_id)] changes in the maps.  //
+    //--------------------------------------------------------------------------------------//
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_pc[e] == old(tap_enclave_metadata_pc)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_regs[e] == old(tap_enclave_metadata_regs)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_addr_valid[e] == old(tap_enclave_metadata_addr_valid)[e]));
+    ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
+                (e != old(cpu_enclave_id) ==> 
+                    tap_enclave_metadata_addr_map[e] == old(tap_enclave_metadata_addr_map)[e]));        
 
 
 
@@ -611,6 +642,9 @@ procedure exit()
     requires (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
+
+    requires (tap_enclave_metadata_valid[tap_enclave_metadata_owner_map[cpu_enclave_id]]);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -786,12 +820,22 @@ procedure destroy(eid: tap_enclave_id_t)
     //----------------------------------------------------------------------//
     // success/failure conditions.                                          //
     //----------------------------------------------------------------------//
-    ensures (!valid_enclave_id(eid)                 || 
-             !old(tap_enclave_metadata_valid)[eid]  || 
-             cpu_enclave_id != tap_null_enc_id) ==> (status == enclave_op_invalid_arg);
-    ensures (valid_enclave_id(eid)                  && 
-             old(tap_enclave_metadata_valid)[eid]   && 
-             cpu_enclave_id == tap_null_enc_id) ==> (status == enclave_op_success);
+    // destroy target must be current enclave/OS's children
+    // destroy target must have no children enclave
+    ensures (!valid_enclave_id(eid)                                         ||
+             !old(tap_enclave_metadata_valid)[eid]                          ||
+             tap_enclave_metadata_owner_map[eid] != cpu_enclave_id          ||
+             (exists e : tap_enclave_id_t :: 
+                (old(tap_enclave_metadata_valid)[eid] && 
+                    tap_enclave_metadata_owner_map[eid] == cpu_enclave_id)) ==> (status == enclave_op_invalid_arg));
+
+    ensures (valid_enclave_id(eid)                                          &&
+             old(tap_enclave_metadata_valid)[eid]                           &&
+             tap_enclave_metadata_owner_map[eid] == cpu_enclave_id          &&
+             (forall e : tap_enclave_id_t :: 
+                (old(tap_enclave_metadata_valid)[eid] ==> 
+                    tap_enclave_metadata_owner_map[eid] != cpu_enclave_id)) ==> (status == enclave_op_success));
+
     ensures (status == enclave_op_success || status == enclave_op_invalid_arg);
 
     //----------------------------------------------------------------------//

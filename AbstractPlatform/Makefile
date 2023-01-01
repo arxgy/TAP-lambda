@@ -8,13 +8,15 @@ BOOGIE := boogie
 BOOGIEOPT:=/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=0 /errorLimit:1 $(BOOGIESMOKE) \
 					 /traceverify \
 					 /trace	\
-					 /tracePOs \
-					 /printModel:2 \
+					 /printModel:1 \
 					 /printModelToFile:log/model.log \
 					 /errorTrace:2 \
+					 /enhancedErrorMessages:0 \
 					 /proverLog:log/prover.log \
+					 /printCFG:dotfiles/ctrlflow \
+					#  /proc:destroy \
+					#  /timeLimit:900 \
 					#  /break \
-					 #  /proc:InitialHavoc
 # /traceverify
 # /errorTrace
 COMMON=../Common

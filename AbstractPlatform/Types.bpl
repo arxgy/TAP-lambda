@@ -29,7 +29,7 @@ type mode_t;
 const unique mode_untrusted : mode_t;
 const unique mode_enclave   : mode_t;
 axiom (forall m : mode_t :: m == mode_untrusted || m == mode_enclave);
-
+axiom mode_untrusted != mode_enclave;
 // -------------------------------------------------------------------- //
 // Page Tables (sort of: because we map addresses and not pages).       //
 // -------------------------------------------------------------------- //
@@ -154,25 +154,23 @@ function tap_proof_op_valid(o : tap_proof_op_t) : bool
     // o == tap_proof_op_launch    || o == tap_proof_op_resume    ||
     // o == tap_proof_op_pause     || o == tap_proof_op_release   ||
     // o == tap_proof_op_block
-
-    // o == tap_proof_op_compute   || 
-    // o == tap_proof_op_destroy   ||
-    o == tap_proof_op_enter     || 
-    // o == tap_proof_op_exit      ||
-    o == tap_proof_op_launch    
-    // o == tap_proof_op_resume    ||
-    // o == tap_proof_op_pause     || 
-    // o == tap_proof_op_release   ||
+    false
+    // o == tap_proof_op_compute    
+    // o == tap_proof_op_destroy   
+    // o == tap_proof_op_enter     
+    // o == tap_proof_op_exit      
+    // o == tap_proof_op_launch    
+    // o == tap_proof_op_resume    
+    // o == tap_proof_op_pause     
+    // o == tap_proof_op_release   
     // o == tap_proof_op_block
 }
 
 function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 {
-    // o == tap_proof_op_compute   ||
-    // o == tap_proof_op_exit      ||
-    // o == tap_proof_op_pause
-
-    // o == tap_proof_op_compute   ||
+    // false
+    // o == tap_proof_op_pause        
+    // o == tap_proof_op_compute      
     o == tap_proof_op_exit      
 }
 
@@ -204,7 +202,8 @@ const tap_user_def_enc_id_4 : tap_enclave_id_t;
 axiom tap_user_def_enc_id_4 == 5;
 const tap_user_def_enc_id_5 : tap_enclave_id_t;
 axiom tap_user_def_enc_id_5 == 6;
-
+const tap_user_def_enc_id_6 : tap_enclave_id_t;
+axiom tap_user_def_enc_id_6 == 6;
 // const tap_user_def_enc_id_head : tap_enclave_id_t;
 // axiom tap_user_def_enc_id_head == 1;
 // const tap_user_def_enc_id_tail : tap_enclave_id_t;
@@ -222,13 +221,14 @@ axiom tap_user_def_enc_id_5 == 6;
 //   id >= tap_privil_enc_id_head && id < tap_privil_enc_id_tail
 // } 
 
-
+  // strange bug: if no id_6, id_5 will be omitted?
 function valid_enclave_id(id : tap_enclave_id_t) : bool
 { 
   id != tap_null_enc_id       && id != tap_blocked_enc_id    &&
   id != tap_user_def_enc_id_1 && id != tap_user_def_enc_id_2 &&
   id != tap_user_def_enc_id_3 && id != tap_user_def_enc_id_4 &&
-  id != tap_user_def_enc_id_5
+  id != tap_user_def_enc_id_5 
+  && id != tap_user_def_enc_id_6
 }
 
 function special_enclave_id(id : tap_enclave_id_t) : bool

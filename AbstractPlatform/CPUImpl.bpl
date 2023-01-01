@@ -512,14 +512,18 @@ implementation destroy(eid: tap_enclave_id_t)
 {
     var pa : wap_addr_t;
     // no enclave id is null.
-    if (!valid_enclave_id(eid) || !tap_enclave_metadata_valid[eid] || cpu_enclave_id != tap_null_enc_id) {
+    if (!valid_enclave_id(eid) || 
+        !tap_enclave_metadata_valid[eid] || 
+         tap_enclave_metadata_owner_map[eid] != cpu_enclave_id || 
+        (exists e : tap_enclave_id_t :: 
+                (tap_enclave_metadata_valid[eid] &&
+                    tap_enclave_metadata_owner_map[eid] == cpu_enclave_id))) {
         status := enclave_op_invalid_arg;
         return;
     }
 
     assert (cpu_enclave_id != eid);
     assert tap_enclave_metadata_valid[eid];
-
     // we have to clear out the enclaves registers and memory.
     pa := k0_wap_addr_t;
     while (LT_wapa(pa, kmax_wap_addr_t))

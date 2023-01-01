@@ -31,6 +31,10 @@ procedure {:inline 1} EnclaveComputation(iter : int)
     pc_pa := cpu_addr_map[cpu_pc];
     assert tap_enclave_metadata_addr_excl[eid][cpu_pc];
     assert tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
+
+    //  cut branches
+    assert !tap_enclave_metadata_privileged[eid];
+
     havoc way; assume valid_cache_way_index(way);
     call pc_op, excp, hit := fetch_va(cpu_pc, way);
     assert excp == excp_none;
@@ -146,7 +150,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
     //  OS cannot launch other PE
     assume !r_privileged;
     // assertions
-
+    current_mode := mode_untrusted;
 
     // begin operation
     if (op == tap_proof_op_launch) {            
@@ -154,19 +158,15 @@ procedure {:inline 1} IntegrityAdversarialStep(
         call InitOSMem(r_container_valid, r_container_data);
         call status := launch(r_eid, r_addr_valid, r_addr_map, 
                               r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
-        assert (r_eid == eid) ==> (status != enclave_op_success);
-    } 
-    else if (op == tap_proof_op_enter) {      
-        // enter
+    } else if (op == tap_proof_op_enter) {
         cpu_regs := r_regs;
         call status := enter(r_eid);
         // mode == mode_enclave means we are in trace_2.
         assert (mode == mode_enclave ==> status == enclave_op_success);
         if (status == enclave_op_success && r_eid == eid) { 
             current_mode := mode_enclave; 
-        }
-    } 
-    else if (op == tap_proof_op_resume) {     
+        } 
+    } else if (op == tap_proof_op_resume) {
         // resume
         call status := resume(r_eid);
         // mode == mode_enclave means we are in trace_2.
@@ -174,45 +174,34 @@ procedure {:inline 1} IntegrityAdversarialStep(
         if (status == enclave_op_success && r_eid == eid) { 
             current_mode := mode_enclave; 
         }
-    }
-    else if (op == tap_proof_op_exit) {       
-        // exit
-        // check mode...
-        if (cpu_enclave_id != tap_null_enc_id && 
-                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
-            // back to PE
-            call status := exit();
-            assert status == enclave_op_success;
-            current_mode := mode_enclave;
-        } else {
-            call status := exit();
-        }
-    } 
-    else if (op == tap_proof_op_pause) {      
+    } else if (op == tap_proof_op_pause) {
         // pause: back to PE / else
-        if (cpu_enclave_id != tap_null_enc_id && 
-                tap_enclave_metadata_owner_map[cpu_enclave_id] == eid) {
-            call status := pause();
-            assert status == enclave_op_success;
+        // mode == mode_enclave means we are in trace_2 && return to eid (PE)
+        call status := pause();
+        assert (mode == mode_enclave ==> status == enclave_op_success);
+        // for both trace_1 && trace_2
+        if (status == enclave_op_success && cpu_enclave_id == eid) {
             current_mode := mode_enclave;
-        } else {
-            call status := pause();
         }
-    }
-    else if (op == tap_proof_op_destroy) {    
-        // destroy.
+    } else if (op == tap_proof_op_exit) {       
+        // exit: back to PE / else
+        // mode == mode_enclave means we are in trace_2 && return to eid (PE)
+        call status := exit();
+        assert (mode == mode_enclave ==> status == enclave_op_success);
+        // for both trace_1 && trace_2
+        if (status == enclave_op_success && cpu_enclave_id == eid) {
+            current_mode := mode_enclave;
+        }
+    } else if (op == tap_proof_op_destroy) {
         call status := destroy(r_eid);
         if (r_eid == eid && status == enclave_op_success) {
             enclave_dead := true;
         }
-    } 
-    else if (op == tap_proof_op_release) {
+    } else if (op == tap_proof_op_release) {
         call status := release_blocked_memory(r_bmap);
-    } 
-    else if (op == tap_proof_op_block) {
+    } else if (op == tap_proof_op_block) {
         call status := block_memory_region(r_bmap);
-    } 
-    else if (op == tap_proof_op_compute) {    
+    } else if (op == tap_proof_op_compute) {    
         // some adversarial computation
         if (*) {
             havoc r_vaddr, r_word;
@@ -287,71 +276,87 @@ procedure {:inline 1} IntegrityEnclaveStep(
 
     // assertions
     assert !tap_enclave_metadata_privileged[eid];
-    
-    if (tap_enclave_metadata_privileged[eid]) {
-        if (op == tap_proof_op_launch) {
-            call InitOSMem(p_container_valid, p_container_data);
-            call status := launch (p_eid, p_addr_valid, p_addr_map,
-                                   p_excl_vaddr, p_excl_map, p_entrypoint, p_privileged);
-            assert (p_eid == eid) ==> (status != enclave_op_success);
-            next_mode := mode_enclave;
+    assert tap_proof_op_valid_in_enclave(op);
 
-        } else if (op == tap_proof_op_enter) {
-            cpu_regs := p_regs;
-            call status := enter(p_eid);
-            // assert
-            if (status == enclave_op_success) {
-                next_mode := mode_untrusted;
-            } else {
-                next_mode := mode_enclave;
-            }
-
-        } else if (op == tap_proof_op_resume) {
-            call status := resume(p_eid);
-            // assert
-            if (status == enclave_op_success) {
-                next_mode := mode_untrusted;
-            } else {
-                next_mode := mode_enclave;
-            }
-
-        } else if (op == tap_proof_op_exit) {
-            call status := exit();
-            assert status == enclave_op_success;
-            next_mode := mode_untrusted;
-
-        } else if (op == tap_proof_op_pause) {
-            // pause itself
-            call status := pause();
-            assert status == enclave_op_success;
-            next_mode := mode_untrusted;
-
-        } else if (op == tap_proof_op_destroy) {
-            call status := destroy(p_eid);
-            next_mode := mode_enclave;
-
-        } else if (op == tap_proof_op_compute) {
-            call vaddr, paddr, data := EnclaveComputation(iter);
-            next_mode := mode_enclave;        
-        }
-    } else {
-        assert tap_proof_op_valid_in_enclave(op);
-        // in enclave-mode:
-        if (op == tap_proof_op_compute) {
-            call vaddr, paddr, data := EnclaveComputation(iter);
-            next_mode := mode_enclave;
-
-        } else if (op == tap_proof_op_pause) {
-            call status := pause();
-            assert status == enclave_op_success;
-            next_mode := mode_untrusted;
-            
-        } else if (op == tap_proof_op_exit) {
-            call status := exit();
-            assert status == enclave_op_success;
-            next_mode := mode_untrusted;
-        }
+    if (op == tap_proof_op_exit) {
+        call status := exit();
+        assert status == enclave_op_success;
+        next_mode := mode_untrusted;
+    } else if (op == tap_proof_op_pause) {
+        call status := pause();
+        assert status == enclave_op_success;
+        next_mode := mode_untrusted;
+    } else if (op == tap_proof_op_compute) {
+        call vaddr, paddr, data := EnclaveComputation(iter);
+        next_mode := mode_enclave;      
     }
+
+    // if (tap_enclave_metadata_privileged[eid]) {
+    //     if (op == tap_proof_op_launch) {
+    //         call InitOSMem(p_container_valid, p_container_data);
+    //         call status := launch (p_eid, p_addr_valid, p_addr_map,
+    //                                p_excl_vaddr, p_excl_map, p_entrypoint, p_privileged);
+    //         assert (p_eid == eid) ==> (status != enclave_op_success);
+    //         next_mode := mode_enclave;
+
+    //     } else if (op == tap_proof_op_enter) {
+    //         cpu_regs := p_regs;
+    //         call status := enter(p_eid);
+    //         // assert
+    //         if (status == enclave_op_success) {
+    //             next_mode := mode_untrusted;
+    //         } else {
+    //             next_mode := mode_enclave;
+    //         }
+
+    //     } 
+    //     else if (op == tap_proof_op_resume) {
+    //         call status := resume(p_eid);
+    //         // assert
+    //         if (status == enclave_op_success) {
+    //             next_mode := mode_untrusted;
+    //         } else {
+    //             next_mode := mode_enclave;
+    //         }
+
+    //     } else if (op == tap_proof_op_exit) {
+    //         call status := exit();
+    //         assert status == enclave_op_success;
+    //         next_mode := mode_untrusted;
+
+    //     } else if (op == tap_proof_op_pause) {
+    //         // pause itself
+    //         call status := pause();
+    //         assert status == enclave_op_success;
+    //         next_mode := mode_untrusted;
+
+    //     } else if (op == tap_proof_op_destroy) {
+    //         call status := destroy(p_eid);
+    //         next_mode := mode_enclave;
+
+    //     } else if (op == tap_proof_op_compute) {
+    //         call vaddr, paddr, data := EnclaveComputation(iter);
+    //         next_mode := mode_enclave;        
+    //     }
+    // } 
+    // else {
+    //     assert tap_proof_op_valid_in_enclave(op);
+    //     // in enclave-mode:
+    //     if (op == tap_proof_op_compute) {
+    //         call vaddr, paddr, data := EnclaveComputation(iter);
+    //         next_mode := mode_enclave;
+
+    //     } else if (op == tap_proof_op_pause) {
+    //         call status := pause();
+    //         assert status == enclave_op_success;
+    //         next_mode := mode_untrusted;
+            
+    //     } else if (op == tap_proof_op_exit) {
+    //         call status := exit();
+    //         assert status == enclave_op_success;
+    //         next_mode := mode_untrusted;
+    //     }
+    // }
 
 }
 
@@ -436,12 +441,13 @@ procedure ProveIntegrity()
     var exestep : int;
 
 
-    // cut branches
+    // cut branches: 
+    //  launch PE
     assume !e_privileged;
 
     // launch the same enclave in both traces.
     call RestoreContext_1();
-    call current_mode_1 := InitialHavoc();
+    call current_mode_1 := InitialHavoc(eid);
     call InitOSMem(e_excl_map, e_container_data);
     call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint, e_privileged);
     assume status == enclave_op_success;
@@ -450,7 +456,7 @@ procedure ProveIntegrity()
 
     // // trace_2.
     call RestoreContext_2();
-    call current_mode_2 := InitialHavoc();
+    call current_mode_2 := InitialHavoc(eid);
     call InitOSMem(e_excl_map, e_container_data);
     call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint, e_privileged);
     assume status == enclave_op_success;
@@ -466,22 +472,70 @@ procedure ProveIntegrity()
     // main loop.
     enclave_dead := false;
     // assume false;
-    // not privileged for now..
-    // assert (!tap_enclave_metadata_privileged[tap_null_enc_id]); 
-    // assert (tap_enclave_metadata_addr_excl_1[eid] == e_excl_vaddr);
-    // assert (tap_enclave_metadata_addr_excl_2[eid] == e_excl_vaddr);
-    
-    // assume false;
+    // assert tap_addr_perm_x(tap_enclave_metadata_addr_valid_1[eid][tap_enclave_metadata_entrypoint_1[eid]]);
+    // assert tap_addr_perm_x(tap_enclave_metadata_addr_valid_2[eid][tap_enclave_metadata_entrypoint_2[eid]]);
 
     while (!enclave_dead)
         //----------------------------------------------------------------------//
         // global TAP invariants.                                               //
         //----------------------------------------------------------------------//
         
-        // assume at beginning, assert at ending
         invariant !tap_enclave_metadata_privileged_1[tap_null_enc_id];
         invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
-        
+        invariant tap_enclave_metadata_privileged_1[eid] == tap_enclave_metadata_privileged_2[eid];
+        // cut branches: only eid privileged / all non-privileged
+        // invariant !tap_enclave_metadata_privileged_1[eid];
+        // invariant !tap_enclave_metadata_privileged_2[eid];
+
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==>
+                    (!tap_enclave_metadata_privileged_1[e]));
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==>
+                    (!tap_enclave_metadata_privileged_2[e]));
+
+        // valid guarantee
+        invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
+        invariant tap_enclave_metadata_valid_2[tap_null_enc_id];
+        invariant (forall e : tap_enclave_id_t :: 
+                        special_enclave_id(e) ==> !tap_enclave_metadata_valid_1[e]);
+        invariant (forall e: tap_enclave_id_t :: 
+                        special_enclave_id(e) ==> !tap_enclave_metadata_valid_2[e]);
+
+        // enclave ownermap relationship: valid enclave's parent must be valid
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==>
+                    (tap_enclave_metadata_valid_1[tap_enclave_metadata_owner_map_1[e]]));
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+                    (tap_enclave_metadata_valid_2[tap_enclave_metadata_owner_map_2[e]]));
+
+        // enclave ownermap relationship: special children
+        invariant tap_enclave_metadata_owner_map_1[eid] == tap_null_enc_id;
+        invariant tap_enclave_metadata_owner_map_2[eid] == tap_null_enc_id;
+        invariant tap_enclave_metadata_owner_map_1[tap_null_enc_id] == tap_null_enc_id;
+        invariant tap_enclave_metadata_owner_map_2[tap_null_enc_id] == tap_null_enc_id;
+
+        // enclave ownermap relationship: the maximal parent-tree depth is 2 
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
+                    (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
+                    (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
+
+        // enclave ownermap relationship: (exit, pause)
+        //   if the mode_untrusted is from PE's children enclave, then the 2 traces has same children enclave
+        invariant ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==>
+                    (cpu_enclave_id_1 == cpu_enclave_id_2));
+        invariant ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==>
+                    (tap_enclave_metadata_valid_2[cpu_enclave_id_2]));
+        invariant ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==>
+                    (tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid));
+
+        // enclave ownermap relationship: enclave with chidren must be privileged 
+        // invariant (forall e : tap_enclave_id_t :: 
+        //             (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] != tap_null_enc_id) ==> 
+        //                 (tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[e]]));
+        // invariant (forall e : tap_enclave_id_t :: 
+        //             (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
+        //                 (tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]));
+
+
         invariant  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                     (valid_enclave_id(e) && !tap_enclave_metadata_valid_1[e]) ==> 
                         (cpu_owner_map_1[pa] != e));
@@ -550,16 +604,12 @@ procedure ProveIntegrity()
         // the two registers are the same.
         invariant (forall ri : regindex_t :: !enclave_dead ==>
                     (tap_enclave_metadata_regs_1[eid][ri] == tap_enclave_metadata_regs_2[eid][ri]));
-
-        // // the two privilege maps are the same? weak
-        // invariant (forall e : tap_enclave_id_t :: 
-        //             (tap_enclave_metadata_privileged_1[e] == tap_enclave_metadata_privileged_2[e]));
-        // the two enclave ownermap are the same? weak
         
         // invariants about the states of the CPUs.
         // are we in attacker mode?
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_1 != eid);
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 == tap_null_enc_id);
+        invariant (current_mode == mode_untrusted) ==> (tap_enclave_metadata_valid_1[cpu_enclave_id_1]);
         // if we are in trusted mode, we mean our enclave. 
         invariant (current_mode == mode_enclave ==> 
                     (cpu_enclave_id_1 == eid  && cpu_enclave_id_2 == eid));
@@ -594,17 +644,11 @@ procedure ProveIntegrity()
                     (current_mode == mode_enclave && e_excl_vaddr[va]) ==>
                         (e_addr_map[va] == cpu_addr_map_2[va]));
     {
-        exestep := exestep + 1;
         havoc r_eid, r_proof_op, e_proof_op, r_regs;
         if (current_mode == mode_untrusted) {   // anon10
             assume tap_proof_op_valid(r_proof_op);
             // execute the operation in trace_1
             call RestoreContext_1();
-            // anon10_Then$1:
-            assert !tap_enclave_metadata_privileged[tap_null_enc_id];
-            assert current_mode != mode_enclave;
-            assert current_mode == mode_untrusted;
-
             call current_mode, enclave_dead := IntegrityAdversarialStep(
                     current_mode, eid, r_eid, r_regs, r_proof_op);
             call SaveContext_1();
