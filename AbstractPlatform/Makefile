@@ -14,7 +14,8 @@ BOOGIEOPT:=/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=0 /errorLimi
 					 /enhancedErrorMessages:0 \
 					 /proverLog:log/prover.log \
 					 /printCFG:dotfiles/ctrlflow \
-					#  /proc:destroy \
+					 /proc:ProveIntegrity \
+					 /proverWarnings:1 \
 					#  /timeLimit:900 \
 					#  /break \
 # /traceverify
