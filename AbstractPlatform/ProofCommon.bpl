@@ -257,7 +257,7 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     // corner cases, precondition for launch
     ensures (!tap_enclave_metadata_privileged[tap_null_enc_id]);
     ensures (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
-    // cut branches
+    // cut branches: all enclaves are NE
     ensures (forall e : tap_enclave_id_t ::
                 tap_enclave_metadata_valid[e] ==> 
                     !tap_enclave_metadata_privileged[e]);

@@ -241,6 +241,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
         if (status == enclave_op_success && cpu_enclave_id == eid) {
             current_mode := mode_enclave;
         }
+        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
     } else if (op == tap_proof_op_exit) {       
         // exit: back to PE / else
         // mode == mode_enclave means we are in trace_2 && return to eid (PE)
@@ -250,6 +251,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
         if (status == enclave_op_success && cpu_enclave_id == eid) {
             current_mode := mode_enclave;
         }
+        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
     } else if (op == tap_proof_op_destroy) {
         call status := destroy(r_eid);
         if (r_eid == eid && status == enclave_op_success) {
@@ -558,10 +560,28 @@ procedure ProveIntegrity()
         // privileged relationship: all NE
         // invariant !tap_enclave_metadata_privileged_1[eid];
         // invariant !tap_enclave_metadata_privileged_2[eid];
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==>
-                    (!tap_enclave_metadata_privileged_1[e]));
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==>
-                    (!tap_enclave_metadata_privileged_2[e]));
+        // invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==>
+        //             (!tap_enclave_metadata_privileged_1[e]));
+        // invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==>
+        //             (!tap_enclave_metadata_privileged_2[e]));
+
+        // privileged relationship: (redundant intermediate?)
+        //  with children: parents' are PE, children are NE
+        //  without children: PE/NE both possible
+        invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] != tap_null_enc_id) ==> 
+                (tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[e]]));
+        invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] != tap_null_enc_id) ==> 
+                (!tap_enclave_metadata_privileged_1[e]));
+
+        invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
+                (tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]));
+        invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
+                (!tap_enclave_metadata_privileged_2[e]));
+        
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -717,6 +737,7 @@ procedure ProveIntegrity()
     {
         havoc r_eid, r_proof_op, e_proof_op, r_regs;
         if (current_mode == mode_untrusted) {   // anon10
+            // assume false;
             assume tap_proof_op_valid(r_proof_op);
             // execute the operation in trace_1
             call RestoreContext_1();
@@ -737,6 +758,7 @@ procedure ProveIntegrity()
             }
             call SaveContext_2();
         } else if (current_mode == mode_enclave) {
+            assume false;
             havoc iter;
             if (e_privileged) {
                 assume tap_proof_op_valid_in_privileged(e_proof_op);

@@ -654,6 +654,9 @@ procedure exit()
                     (cpu_owner_map[pa] != e));
 
     requires (tap_enclave_metadata_valid[tap_enclave_metadata_owner_map[cpu_enclave_id]]);
+    
+    requires ((tap_enclave_metadata_owner_map[cpu_enclave_id] == tap_null_enc_id) || 
+              (tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]));
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
