@@ -247,7 +247,8 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
     modifies tap_enclave_metadata_owner_map;
-
+    modifies tap_enclave_metadata_privileged;
+    
     ensures (current_mode == mode_untrusted);
     //----------------------------------------------------------------------//
     // global TAP invariants.                                               //
@@ -314,8 +315,12 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
                 (cpu_addr_map[va] == tap_enclave_metadata_addr_map[cpu_enclave_id][va]));
     ensures (forall va : vaddr_t :: 
                 (tap_addr_perm_eq(cpu_addr_valid[va], tap_enclave_metadata_addr_valid[cpu_enclave_id][va])));
-
-
+    
+    //  date 2.16
+    //  initial state: all are NE
+    ensures (forall e : tap_enclave_id_t :: 
+                tap_enclave_metadata_valid[e] ==> 
+                    !tap_enclave_metadata_privileged[e]);
 
 // Uninterpreted functions to model deterministic computation.
 function uf_cpu_r0_index(opcode : word_t) : regindex_t;
