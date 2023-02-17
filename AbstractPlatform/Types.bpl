@@ -182,8 +182,8 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
     // o == tap_proof_op_pause     
     // false
     // o == tap_proof_op_compute   
-    o == tap_proof_op_destroy   
-    // o == tap_proof_op_enter     
+    // o == tap_proof_op_destroy   
+    o == tap_proof_op_enter     
     // o == tap_proof_op_exit      
     // o == tap_proof_op_launch    
     // o == tap_proof_op_resume    

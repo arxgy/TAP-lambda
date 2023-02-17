@@ -381,6 +381,9 @@ procedure {:inline 1} IntegrityEnclaveStep(
     } else if (op == tap_proof_op_destroy) {
         call status := destroy(p_eid);
         next_mode := mode_enclave;
+    } else if (op == tap_proof_op_compute) {
+        call vaddr, paddr, data := EnclaveComputation(iter);
+        next_mode := mode_enclave;        
     }
 
     // if (tap_enclave_metadata_privileged[eid]) {
@@ -400,7 +403,6 @@ procedure {:inline 1} IntegrityEnclaveStep(
     //         } else {
     //             next_mode := mode_enclave;
     //         }
-
     //     } 
     //     else if (op == tap_proof_op_resume) {
     //         call status := resume(p_eid);
