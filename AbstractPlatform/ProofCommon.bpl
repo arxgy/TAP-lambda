@@ -274,6 +274,8 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     ensures tap_enclave_metadata_valid[tap_null_enc_id];
     ensures (forall e : tap_enclave_id_t :: 
                 special_enclave_id(e) ==> !tap_enclave_metadata_valid[e]);
+    // eid cannot be valid at init stage.
+    ensures !tap_enclave_metadata_valid[eid];
     // randomness control: differrent traces have same ownermap at beginning.
     // cut branches: those ensures will cost a lot
 
@@ -316,11 +318,49 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     ensures (forall va : vaddr_t :: 
                 (tap_addr_perm_eq(cpu_addr_valid[va], tap_enclave_metadata_addr_valid[cpu_enclave_id][va])));
     
-    //  date 2.16
+    //  Feb 16, 2023.
     //  initial state: all are NE
     ensures (forall e : tap_enclave_id_t :: 
                 tap_enclave_metadata_valid[e] ==> 
                     !tap_enclave_metadata_privileged[e]);
+    //  Apr 7, 2023.
+    //  initial state: exclusive memory consistency
+    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        tap_enclave_metadata_valid[e] ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
+    
+
+// launch startup stage.
+procedure LaunchHavoc(eid : tap_enclave_id_t) 
+    returns (addr_valid : addr_valid_t, 
+             addr_map : addr_map_t, 
+             excl_vaddr : excl_vaddr_t, 
+             excl_map : excl_map_t, 
+             entrypoint : vaddr_t, 
+             privilege : bool);
+             
+    ensures tap_addr_perm_x(addr_valid[entrypoint]);
+    ensures excl_map[addr_map[entrypoint]];
+    ensures excl_vaddr[entrypoint];
+    ensures (forall pa : wap_addr_t :: 
+        (excl_map[pa] ==> cpu_owner_map[pa] == tap_null_enc_id));
+    ensures (forall v : vaddr_t :: 
+        (excl_vaddr[v] ==> tap_addr_perm_v(addr_valid[v])));
+    ensures (forall v : vaddr_t :: 
+        (excl_vaddr[v] ==> excl_map[addr_map[v]]));
+    ensures (forall v1, v2 : vaddr_t :: 
+        !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
+    ensures !privilege;
+
+
+procedure LoadHavoc(eid : tap_enclave_id_t)
+    returns (i_eid : tap_enclave_id_t);
+
+    ensures tap_enclave_metadata_valid[i_eid];
+    ensures tap_enclave_metadata_privileged[eid] ==> 
+        (i_eid == eid || tap_enclave_metadata_owner_map[i_eid] == eid);
+    ensures !tap_enclave_metadata_privileged[eid] ==>
+        (i_eid == eid);
 
 // Uninterpreted functions to model deterministic computation.
 function uf_cpu_r0_index(opcode : word_t) : regindex_t;
@@ -343,3 +383,13 @@ function uf_observation_mem(cpu_pc : vaddr_t, l_word : word_t, r_word : word_t) 
 function uf_observation_cache(hit1 : bool, hit2 : bool) : word_t;
 function uf_observation_pt(r_valid : addr_perm_t, r_paddr : wap_addr_t) : word_t;
 
+function uf_load_selector(pc : vaddr_t, op : word_t, r1 : word_t, r2 : word_t) : tap_enclave_id_t;
+
+// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
+//     tap_enclave_metadata_valid[uf_load_selector(i_eid, r1, r2)]);
+// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
+//     tap_enclave_metadata_privileged[i_eid] ==> 
+//         uf_load_selector(i_eid, r1, r2) == i_eid || tap_enclave_metadata_owner_map[uf_load_selector(i_eid, r1, r2)] == i_eid);
+// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
+//     !tap_enclave_metadata_privileged[i_eid] ==> 
+//         uf_load_selector(i_eid, r1, r2) == i_eid);

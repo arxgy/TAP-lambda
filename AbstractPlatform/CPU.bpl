@@ -128,7 +128,7 @@ procedure {:inline 1} set_enclave_addr_map(
    modifies tap_enclave_metadata_addr_valid;
    modifies tap_enclave_metadata_addr_map;
 {
-    // default values.
+    // include NE setup.
     if (tap_enclave_metadata_owner_map[eid] == cpu_enclave_id && 
         tap_enclave_metadata_valid[eid]) {
         if (!tap_enclave_metadata_addr_excl[eid][va]) {
@@ -139,6 +139,7 @@ procedure {:inline 1} set_enclave_addr_map(
         }
     }
     status := enclave_op_invalid_arg;
+    // default values.
     // if (cpu_enclave_id == tap_null_enc_id &&
     //     tap_enclave_metadata_valid[eid]) 
     // {
@@ -185,47 +186,49 @@ procedure {:inline 1} fetch_va(vaddr : vaddr_t, repl_way : cache_way_index_t)
         call hit, hit_way := query_cache(paddr, repl_way); 
     }
 }
-
+// Reinterpreted load_va: PE can load from children NE.
+// If we make introspection, 
 procedure {:inline 1} load_va(eid : tap_enclave_id_t , vaddr : vaddr_t, repl_way : cache_way_index_t)
     returns (data: word_t, excp: exception_t, hit : bool)
     requires valid_cache_way_index(repl_way);
-    // TODO: more requires?
-    requires eid == cpu_owner_map[cpu_addr_map[vaddr]];
-
     modifies cache_valid_map, cache_tag_map, cpu_addr_valid;
+    // modifies tap_enclave_metadata_addr_valid;
 {
     var paddr : wap_addr_t;
     var owner_eid : tap_enclave_id_t;
     var hit_way : cache_way_index_t;
-    var inspect : bool;     // Is this a inspection operation? 
+    var introspection : bool;     // Is this a inspection operation? 
     // default.
     data := k0_word_t;
     hit := false; 
-    inspect := false;
+    introspection := false;
 
     // translate VA -> PA.
     if (!tap_addr_perm_r(cpu_addr_valid[vaddr])) { 
         excp := excp_os_protection_fault; return; 
     }
-    paddr := cpu_addr_map[vaddr];
+    paddr := tap_enclave_metadata_addr_map[eid][vaddr];
     // are we not allowed to access this memory
     owner_eid := cpu_owner_map[paddr];
-    assert eid == owner_eid;
+
     if (owner_eid != tap_null_enc_id && owner_eid != cpu_enclave_id) {
-        if (tap_enclave_metadata_owner_map[owner_eid] != cpu_enclave_id) {
+        if (tap_enclave_metadata_owner_map[owner_eid] == cpu_enclave_id) {
+            introspection := true;
+        } else {
             excp := excp_tp_protection_fault; 
             return;
-        } else {
-            inspect := true;
         }
     }
     // update accessed bit.
-    // inspect: no update
-    if (!inspect) {
+    // introspection: doesn't guarantee the load data be the same.
+    if (!introspection) {
         cpu_addr_valid[vaddr] := tap_set_addr_perm_a(cpu_addr_valid[vaddr]);
+        data := cpu_mem[paddr];
+    } else {
+        // time-consuming
+        // tap_enclave_metadata_addr_valid[eid][vaddr] := tap_set_addr_perm_a(tap_enclave_metadata_addr_valid[eid][vaddr]);
+        data := k0_word_t;
     }
-    // perform load.
-    data := cpu_mem[paddr];
     excp := excp_none;
 
     // update cache.
@@ -234,6 +237,7 @@ procedure {:inline 1} load_va(eid : tap_enclave_id_t , vaddr : vaddr_t, repl_way
     }
 }
 
+// We leave the reinterpreted store operation to the future model.
 procedure {:inline 1} store_va(vaddr : vaddr_t, data : word_t, repl_way : cache_way_index_t)
     returns (excp: exception_t, hit : bool)
     modifies cpu_mem;
@@ -322,7 +326,8 @@ procedure launch(
                     (cpu_owner_map[pa] != e));
 
     requires (!tap_enclave_metadata_privileged[tap_null_enc_id]);
-
+    // add non-valid demand into requires. Apr 6, 2023.
+    requires (!tap_enclave_metadata_valid[eid]);
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==>
@@ -391,6 +396,8 @@ procedure launch(
     //---------------------------------------------------------------------//
     // conditions which specify when we fail.                              //
     //---------------------------------------------------------------------//
+
+    /* bug fixed: We shouldn't add post-condition requirement into result ensure clause. */
     ensures
         (((cpu_enclave_id == tap_null_enc_id ) ||
                 (old(tap_enclave_metadata_privileged)[cpu_enclave_id] && !privileged))              &&   
@@ -402,9 +409,7 @@ procedure launch(
          (forall pa : wap_addr_t :: (excl_paddr[pa] ==> old(cpu_owner_map)[pa] == tap_null_enc_id)) &&   
          (forall v : vaddr_t :: excl_vaddr[v] ==> tap_addr_perm_v(addr_valid[v]))                   && 
          (forall v : vaddr_t :: excl_vaddr[v] ==> excl_paddr[addr_map[v]])                          &&
-         (forall v1, v2 : vaddr_t :: !vaddr_alias(excl_vaddr, addr_map, v1, v2))                    &&
-         (tap_enclave_metadata_privileged[eid] == privileged)                                       &&
-         (tap_enclave_metadata_owner_map[eid] == cpu_enclave_id))
+         (forall v1, v2 : vaddr_t :: !vaddr_alias(excl_vaddr, addr_map, v1, v2)))
     <==> (status == enclave_op_success);
 
     ensures (status == enclave_op_success || status == enclave_op_invalid_arg);
