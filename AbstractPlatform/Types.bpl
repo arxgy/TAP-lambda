@@ -147,15 +147,16 @@ axiom (forall o : tap_proof_op_t ::
         o == tap_proof_op_pause     ||
         o == tap_proof_op_release   ||
         o == tap_proof_op_block);
-        
+// passed: enter, resume, destroy
+// failed: compute exit launch
 function tap_proof_op_valid(o : tap_proof_op_t) : bool 
 {
-    false
+    // false
     // o == tap_proof_op_compute     
     // o == tap_proof_op_destroy    
     // o == tap_proof_op_enter   
     // o == tap_proof_op_exit    
-    // o == tap_proof_op_launch  
+    o == tap_proof_op_launch  
     // o == tap_proof_op_resume  
     // o == tap_proof_op_pause  
     // o == tap_proof_op_release 
@@ -164,21 +165,13 @@ function tap_proof_op_valid(o : tap_proof_op_t) : bool
 
 function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 {
-    false
-    // o == tap_proof_op_pause        
-    // o == tap_proof_op_compute      
-    // o == tap_proof_op_exit      
+    o == tap_proof_op_pause     ||   
+    o == tap_proof_op_compute   || 
+    o == tap_proof_op_exit      
 }
 
-/* proved: exit pause launch resume destroy */
-/* todo: compute (load) launch   1245 */
 function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 {
-    // o == tap_proof_op_compute   || o == tap_proof_op_destroy   ||
-    // o == tap_proof_op_enter     || o == tap_proof_op_exit      ||
-    // o == tap_proof_op_launch    || o == tap_proof_op_resume    ||
-    // o == tap_proof_op_pause     
-    // false
     o == tap_proof_op_compute   ||
     o == tap_proof_op_destroy || 
     o == tap_proof_op_enter   ||

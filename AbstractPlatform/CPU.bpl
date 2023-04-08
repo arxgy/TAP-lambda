@@ -954,7 +954,9 @@ procedure block_memory_region(bmap : excl_map_t)
                     else cpu_owner_map[p] == old(cpu_owner_map)[p]);
     ensures (status != enclave_op_success) ==> 
                 old(cpu_owner_map) == cpu_owner_map;
-                 
+    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        (tap_enclave_metadata_valid[e] ==> 
+            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
      
 
    
@@ -993,3 +995,8 @@ procedure release_blocked_memory(bmap : excl_map_t)
     ensures (status != enclave_op_success) ==> 
                 (old(cpu_owner_map) == cpu_owner_map &&
                  old(cpu_mem) == cpu_mem);
+    // ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+    //     (tap_enclave_metadata_valid[e] ==> 
+    //         tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
+    // ensures (forall v : vaddr_t :: 
+    //     (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));
