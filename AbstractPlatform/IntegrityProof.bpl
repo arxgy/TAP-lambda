@@ -505,6 +505,10 @@ procedure ProveIntegrity()
     call current_mode_1 := InitialHavoc(eid);
     call InitOSMem(e_excl_map, e_container_data);
     call status := launch(eid, e_addr_valid, e_addr_map, e_excl_vaddr, e_excl_map, e_entrypoint, e_privileged);
+    assert (forall e : tap_enclave_id_t, v : vaddr_t :: 
+            (tap_enclave_metadata_valid[e] ==> 
+                (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)));
+
     assume status == enclave_op_success;
     
     call SaveContext_1();
@@ -527,12 +531,12 @@ procedure ProveIntegrity()
     // main loop.
     enclave_dead := false;
 
-    assume (forall e : tap_enclave_id_t, v : vaddr_t :: 
-            (tap_enclave_metadata_valid_1[e] ==> 
-                (tap_enclave_metadata_addr_excl_1[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map_1[e][v]] == e)));
-    assume (forall e : tap_enclave_id_t, v : vaddr_t :: 
-                (tap_enclave_metadata_valid_2[e] ==> 
-                    (tap_enclave_metadata_addr_excl_2[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map_2[e][v]] == e)));
+    // assume (forall e : tap_enclave_id_t, v : vaddr_t :: 
+    //         (tap_enclave_metadata_valid_1[e] ==> 
+    //             (tap_enclave_metadata_addr_excl_1[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map_1[e][v]] == e)));
+    // assume (forall e : tap_enclave_id_t, v : vaddr_t :: 
+    //             (tap_enclave_metadata_valid_2[e] ==> 
+    //                 (tap_enclave_metadata_addr_excl_2[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map_2[e][v]] == e)));
     
     while (!enclave_dead)
         //----------------------------------------------------------------------//
@@ -653,7 +657,12 @@ procedure ProveIntegrity()
         invariant (forall e : tap_enclave_id_t, v : vaddr_t :: 
                     (tap_enclave_metadata_valid_2[e] ==> 
                         (tap_enclave_metadata_addr_excl_2[e][v] <==> cpu_owner_map_2[tap_enclave_metadata_addr_map_2[e][v]] == e)));
-        
+        invariant (forall v : vaddr_t :: 
+                    (!enclave_dead) ==> 
+                        (tap_enclave_metadata_addr_excl_1[cpu_enclave_id_1][v] <==> cpu_owner_map_1[cpu_addr_map_1[v]] == cpu_enclave_id_1));
+        invariant (forall v : vaddr_t :: 
+                    (!enclave_dead) ==> 
+                        (tap_enclave_metadata_addr_excl_2[cpu_enclave_id_2][v] <==> cpu_owner_map_2[cpu_addr_map_2[v]] == cpu_enclave_id_2));
         // permission bits are the same.
         invariant (forall v : vaddr_t :: (!enclave_dead && e_excl_vaddr[v]) ==>
                      (tap_enclave_metadata_addr_valid_1[eid][v] == tap_enclave_metadata_addr_valid_2[eid][v]));

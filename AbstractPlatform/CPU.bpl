@@ -458,7 +458,16 @@ procedure launch(
          (forall v : vaddr_t :: 
             tap_enclave_metadata_addr_excl[eid][v] ==>
             tap_addr_perm_v(tap_enclave_metadata_addr_valid[eid][v]));
-
+    // TODO: we can improve this. Apr 8, 2023.
+    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        (tap_enclave_metadata_valid[e] ==> 
+            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
+    // ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+    //     (e != eid && tap_enclave_metadata_valid[e]) ==> 
+    //         (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
+    // ensures (status == enclave_op_success) ==> (forall v : vaddr_t :: 
+    //     (tap_enclave_metadata_valid[eid] ==> 
+    //         tap_enclave_metadata_addr_excl[eid][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[eid][v]] == eid));
 // -------------------------------------------------------------------- //
 // Enter an enclave                                                     //
 // -------------------------------------------------------------------- //
@@ -543,6 +552,11 @@ procedure enter(eid: tap_enclave_id_t)
     ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
                 (e != old(cpu_enclave_id) ==> 
                     tap_enclave_metadata_addr_map[e] == old(tap_enclave_metadata_addr_map)[e]));        
+    ensures (status == enclave_op_success) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[old(cpu_enclave_id)][v] <==> cpu_owner_map[old(cpu_addr_map)[v]] == old(cpu_enclave_id));
+
+    
 // -------------------------------------------------------------------- //
 // Resume an enclave                                                    //
 // -------------------------------------------------------------------- //
@@ -632,7 +646,11 @@ procedure resume(eid: tap_enclave_id_t)
     ensures (status == enclave_op_success) ==> (forall e : tap_enclave_id_t ::
                 (e != old(cpu_enclave_id) ==> 
                     tap_enclave_metadata_addr_map[e] == old(tap_enclave_metadata_addr_map)[e]));        
+    ensures (status == enclave_op_success) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[old(cpu_enclave_id)][v] <==> cpu_owner_map[old(cpu_addr_map)[v]] == old(cpu_enclave_id));
 
+    
 
 
 // -------------------------------------------------------------------- //
@@ -722,7 +740,9 @@ procedure exit()
                     (cpu_addr_valid == tap_enclave_metadata_addr_valid[tap_enclave_metadata_owner_map[old(cpu_enclave_id)]]);
     ensures (status == enclave_op_success) ==> 
                     (cpu_addr_map == tap_enclave_metadata_addr_map[tap_enclave_metadata_owner_map[old(cpu_enclave_id)]]);
-
+    ensures (status == enclave_op_success) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[old(cpu_enclave_id)][v] <==> cpu_owner_map[old(cpu_addr_map)[v]] == old(cpu_enclave_id));
 
 // -------------------------------------------------------------------- //
 // Pause an enclave.                                                    //
@@ -811,7 +831,11 @@ procedure pause()
                     (cpu_addr_valid == tap_enclave_metadata_addr_valid[tap_enclave_metadata_owner_map[old(cpu_enclave_id)]]);
     ensures (status == enclave_op_success) ==> 
                     (cpu_addr_map == tap_enclave_metadata_addr_map[tap_enclave_metadata_owner_map[old(cpu_enclave_id)]]);
+    ensures (status == enclave_op_success) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[old(cpu_enclave_id)][v] <==> cpu_owner_map[old(cpu_addr_map)[v]] == old(cpu_enclave_id));
 
+    
 
 
 // -------------------------------------------------------------------- //
@@ -896,6 +920,9 @@ procedure destroy(eid: tap_enclave_id_t)
                                      else old(tap_enclave_metadata_pc)[e]));
     ensures (status == enclave_op_success) ==>
                 (tap_enclave_metadata_regs[eid] == kzero_regs_t);
+    // ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+    //     (tap_enclave_metadata_valid[e] ==> 
+    //         (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)));
 
 // -------------------------------------------------------------------- //
 // Block available memory.                                              //
