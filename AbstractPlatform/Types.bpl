@@ -158,9 +158,9 @@ function tap_proof_op_valid(o : tap_proof_op_t) : bool
     o == tap_proof_op_exit    ||
     o == tap_proof_op_launch  ||
     o == tap_proof_op_resume  || 
-    o == tap_proof_op_pause  
-    // o == tap_proof_op_release 
-    // o == tap_proof_op_block
+    o == tap_proof_op_pause   ||
+    o == tap_proof_op_release ||
+    o == tap_proof_op_block
 }
 
 function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool

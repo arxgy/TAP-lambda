@@ -970,7 +970,14 @@ procedure block_memory_region(bmap : excl_map_t)
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
         (tap_enclave_metadata_valid[e] ==> 
             tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
-     
+    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]]) ==> 
+            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e);
+    ensures (forall v : vaddr_t :: 
+        tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
 
    
 // -------------------------------------------------------------------- //
@@ -1008,8 +1015,11 @@ procedure release_blocked_memory(bmap : excl_map_t)
     ensures (status != enclave_op_success) ==> 
                 (old(cpu_owner_map) == cpu_owner_map &&
                  old(cpu_mem) == cpu_mem);
-    // ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
-    //     (tap_enclave_metadata_valid[e] ==> 
-    //         tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
-    // ensures (forall v : vaddr_t :: 
-    //     (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));
+    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]]) ==> 
+            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e);
+    ensures (forall v : vaddr_t :: 
+        tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
