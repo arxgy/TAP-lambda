@@ -362,6 +362,12 @@ procedure LoadHavoc(eid : tap_enclave_id_t)
     ensures !tap_enclave_metadata_privileged[eid] ==>
         (i_eid == eid);
 
+// mapping interface privided by PE.
+procedure AcquireMapping(eid : tap_enclave_id_t)
+    returns (r_vaddr : vaddr_t, r_paddr : wap_addr_t, r_valid : addr_perm_t);
+    ensures tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[eid]] ==>
+        tap_enclave_metadata_addr_excl[eid][r_vaddr] <==> cpu_owner_map[r_paddr] == eid;
+
 // Uninterpreted functions to model deterministic computation.
 function uf_cpu_r0_index(opcode : word_t) : regindex_t;
 function uf_cpu_r1_index(opcode : word_t) : regindex_t;

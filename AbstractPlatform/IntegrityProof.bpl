@@ -238,16 +238,16 @@ procedure {:inline 1} IntegrityAdversarialStep(
         } else if (*) {
             havoc cpu_regs, cpu_pc;
         } 
-        // else if (*) {
-        //     // update "page" table map.
-        //     havoc r_vaddr, r_paddr, r_valid;
-        //     cpu_addr_valid[r_vaddr] := r_valid;
-        //     cpu_addr_map[r_vaddr] := r_paddr;
-        // } 
-        // else if (*) {
-        //     havoc r_vaddr, r_paddr, r_valid;
-        //     call status := set_enclave_addr_map(r_eid, r_vaddr, r_valid, r_paddr);
-        // }
+        else if (*) {
+            // update "page" table map.
+            call r_vaddr, r_paddr, r_valid := AcquireMapping(cpu_enclave_id);
+            cpu_addr_valid[r_vaddr] := r_valid;
+            cpu_addr_map[r_vaddr] := r_paddr;
+        } 
+        else if (*) {
+            havoc r_vaddr, r_paddr, r_valid;
+            call status := set_enclave_addr_map(r_eid, r_vaddr, r_valid, r_paddr);
+        }
     }
 }
 
@@ -601,21 +601,20 @@ procedure ProveIntegrity()
                      (tap_enclave_metadata_addr_excl_1[eid] == e_excl_vaddr);
         invariant (!enclave_dead) ==>
                      (tap_enclave_metadata_addr_excl_2[eid] == e_excl_vaddr);
-        // extend the exclusive-memory consistency to all enclaves.
-        // TODO: 
+        // extend the exclusive-memory consistency to PE and NE children.
         // 1.   constrain this consistency to PE-controlled enclave.
         invariant (forall e : tap_enclave_id_t, v : vaddr_t :: 
-                    (tap_enclave_metadata_valid_1[e] ==> 
+                    (tap_enclave_metadata_valid_1[e] && (tap_enclave_metadata_privileged_1[e] || tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[e]]) ==> 
                         (tap_enclave_metadata_addr_excl_1[e][v] <==> cpu_owner_map_1[tap_enclave_metadata_addr_map_1[e][v]] == e)));
         invariant (forall e : tap_enclave_id_t, v : vaddr_t :: 
-                    (tap_enclave_metadata_valid_2[e] ==> 
+                    (tap_enclave_metadata_valid_2[e] && (tap_enclave_metadata_privileged_2[e] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]) ==> 
                         (tap_enclave_metadata_addr_excl_2[e][v] <==> cpu_owner_map_2[tap_enclave_metadata_addr_map_2[e][v]] == e)));
         // 2.   constraint this consistency to PE.
         invariant (forall v : vaddr_t :: 
-                    (!enclave_dead) ==> 
+                    (!enclave_dead && (tap_enclave_metadata_privileged_1[cpu_enclave_id_1] || tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[cpu_enclave_id_1]])) ==> 
                         (tap_enclave_metadata_addr_excl_1[cpu_enclave_id_1][v] <==> cpu_owner_map_1[cpu_addr_map_1[v]] == cpu_enclave_id_1));
         invariant (forall v : vaddr_t :: 
-                    (!enclave_dead) ==> 
+                    (!enclave_dead && (tap_enclave_metadata_privileged_2[cpu_enclave_id_2] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[cpu_enclave_id_2]])) ==> 
                         (tap_enclave_metadata_addr_excl_2[cpu_enclave_id_2][v] <==> cpu_owner_map_2[cpu_addr_map_2[v]] == cpu_enclave_id_2));
         // permission bits are the same.
         invariant (forall v : vaddr_t :: (!enclave_dead && e_excl_vaddr[v]) ==>
@@ -653,16 +652,16 @@ procedure ProveIntegrity()
 
         // invariants about state sync between 2 traces.
         // TODO: these properties may need extension/modification for multiple PE environment.
-        // untrusted mode sync.
+        // OS/NE sync.
         invariant (current_mode == mode_untrusted) ==> 
                     (cpu_enclave_id_1 == tap_null_enc_id ==> 
                         cpu_enclave_id_2 == tap_null_enc_id);
         invariant (current_mode == mode_untrusted) ==> 
             ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == tap_null_enc_id) ==> 
                 tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == tap_null_enc_id);
-        invariant (current_mode == mode_untrusted) ==> 
-            ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] != tap_null_enc_id) ==> 
-                tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] != tap_null_enc_id);
+        // due to Z3 prover's features, we add some trivial claims in the precondition of this claim.
+        invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
+            (cpu_enclave_id_1 == cpu_enclave_id_2);
         // PE sync. the PE's structure must be same.
         invariant (forall e : tap_enclave_id_t :: 
             (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
@@ -746,7 +745,7 @@ procedure ProveIntegrity()
 
         } else if (current_mode == mode_enclave) {
             havoc iter;
-            assume false;
+            // assume false;
             if (e_privileged) {
                 assume tap_proof_op_valid_in_privileged(e_proof_op);
                 
