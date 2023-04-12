@@ -21,6 +21,20 @@ axiom kN_regindex_t_as_int == 512;
 function valid_regindex(ri : regindex_t) : bool 
 { ri >= k0_regindex_t && ri < kN_regindex_t }
 
+// Restrict valid enclave mapping id to support finite measurement steps
+// Should be distinguished from meta_valid().
+const k0_int_t  : int;
+axiom k0_int_t == 0;
+
+const k0_enclave_id_t : int;
+axiom k0_enclave_id_t == 0;
+const kN_enclave_id_t : int;
+axiom kN_enclave_id_t == 512;
+
+const kN_enclave_id_t_as_int : int;
+axiom kN_enclave_id_t_as_int == 512;
+function valid_enclave_id_index(eid : tap_enclave_id_t) : bool
+{ eid >= k0_enclave_id_t && eid < kN_enclave_id_t }
 
 // -------------------------------------------------------------------- //
 // operating mode of the CPU.                                           //
@@ -152,6 +166,8 @@ axiom (forall o : tap_proof_op_t ::
 function tap_proof_op_valid(o : tap_proof_op_t) : bool 
 {
     // false
+    // exclusive_map[eid][virtual address] == bool/ true /false 
+    // ownermap[physical address] => enclave - id
     o == tap_proof_op_compute ||
     o == tap_proof_op_destroy || 
     o == tap_proof_op_enter   ||

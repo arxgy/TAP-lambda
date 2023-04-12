@@ -27,6 +27,8 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     var excp    : exception_t;
     var hit     : bool;
     var way     : cache_way_index_t;
+    var i_eid   : tap_enclave_id_t;
+    var is_invalid_id : bool;
 
     eid := cpu_enclave_id;
     pc_pa := cpu_addr_map[cpu_pc];
@@ -39,14 +41,35 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     // two register sources.
     r0 := cpu_regs[uf_cpu_r0_index(pc_op)];
     r1 := cpu_regs[uf_cpu_r1_index(pc_op)];
+    
+    // operation sync.
+    i_eid := uf_load_selector(cpu_pc, pc_op, r0, r1);
+    is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
+                         (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
+                         (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
+    if (is_invalid_id) {
+        vaddr := k0_vaddr_t;
+        data  := k0_word_t;
+        return;
+    }
 
     // load address and value.
     l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
     assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+
+    // select proper virtual address.
+    assume tap_enclave_metadata_addr_excl_1[i_eid][l_vaddr] <==> tap_enclave_metadata_addr_excl_2[i_eid][l_vaddr];
+
     if(tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
-        assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
-        havoc way; assume valid_cache_way_index(way);
-        call l_data, excp, hit := load_va(l_vaddr, way);
+        // assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
+        // havoc way; assume valid_cache_way_index(way);
+        // call l_data, excp, hit := load_va(l_vaddr, way);
+        
+        // load from exclusive memory
+        havoc way; 
+        assume valid_cache_way_index(way);
+        call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
+        assert excp == excp_none;
     } else {
         l_data := uf_load_data(l_vaddr, iter);
         excp := excp_none;
@@ -80,13 +103,14 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     rd := uf_cpu_r2_index(pc_op);
     cpu_regs[rd] := uf_cpu_result(cpu_pc, pc_op, l_data, r0, r1);
 }
-                      
-function {:inline 1} is_measurement_untrusted_op(op : tap_proof_op_t) : bool
+// Boogie 2.16.4.0
+//    Error: Parameter to :inline attribute on a function must be Boolean
+function is_measurement_untrusted_op(op : tap_proof_op_t) : bool
 { 
   op == tap_proof_op_resume || op == tap_proof_op_enter 
 }
 
-function {:inline 1} is_measurement_enclave_op(op : tap_proof_op_t) : bool
+function is_measurement_enclave_op(op : tap_proof_op_t) : bool
 { 
   op == tap_proof_op_compute    ||
   op == tap_proof_op_pause      ||
@@ -106,10 +130,6 @@ procedure {:inline 1} MeasurementUntrustedOp(
   modifies cpu_addr_valid;
   modifies cpu_addr_map;
   modifies cpu_owner_map;
-  modifies untrusted_addr_valid;
-  modifies untrusted_addr_map;
-  modifies untrusted_regs;
-  modifies untrusted_pc;
   modifies tap_enclave_metadata_valid;
   modifies tap_enclave_metadata_addr_map;
   modifies tap_enclave_metadata_addr_valid;
@@ -149,10 +169,6 @@ procedure {:inline 1} MeasurementEnclaveOp(
   modifies cpu_addr_map;
   modifies cpu_owner_map;
   modifies cache_valid_map, cache_tag_map;
-  modifies untrusted_addr_valid;
-  modifies untrusted_addr_map;
-  modifies untrusted_regs;
-  modifies untrusted_pc;
   modifies tap_enclave_metadata_valid;
   modifies tap_enclave_metadata_addr_map;
   modifies tap_enclave_metadata_addr_valid;
@@ -190,7 +206,8 @@ procedure measurement_proof_part1()
       /* excl vaddr */  e_excl_vaddr_1, e_excl_vaddr_2 : excl_vaddr_t,
       /* excl paddr */  e_excl_map_1, e_excl_map_2     : excl_map_t,
       /* entrypoint */  e_entrypoint_1, e_entrypoint_2 : vaddr_t,
-      /* mode       */  current_mode                  : mode_t
+      /* privileged */  e_privileged_1, e_privileged_2 : bool,
+      /* mode       */  current_mode                   : mode_t
   )
 
   modifies cpu_mem;
@@ -203,10 +220,6 @@ procedure measurement_proof_part1()
   modifies cache_valid_map, cache_tag_map;
   modifies cache_valid_map_1, cache_tag_map_1;
   modifies cache_valid_map_2, cache_tag_map_2;
-  modifies untrusted_addr_valid;
-  modifies untrusted_addr_map;
-  modifies untrusted_regs;
-  modifies untrusted_pc;
   modifies tap_enclave_metadata_valid;
   modifies tap_enclave_metadata_addr_map;
   modifies tap_enclave_metadata_addr_valid;
@@ -216,6 +229,8 @@ procedure measurement_proof_part1()
   modifies tap_enclave_metadata_regs;
   modifies tap_enclave_metadata_paused;
   modifies tap_enclave_metadata_cache_conflict;
+  modifies tap_enclave_metadata_privileged;
+  modifies tap_enclave_metadata_owner_map;
   modifies cpu_mem_1;
   modifies cpu_regs_1;
   modifies cpu_pc_1;
@@ -223,10 +238,6 @@ procedure measurement_proof_part1()
   modifies cpu_addr_valid_1;
   modifies cpu_addr_map_1;
   modifies cpu_owner_map_1;
-  modifies untrusted_addr_valid_1;
-  modifies untrusted_addr_map_1;
-  modifies untrusted_regs_1;
-  modifies untrusted_pc_1;
   modifies tap_enclave_metadata_valid_1;
   modifies tap_enclave_metadata_addr_map_1;
   modifies tap_enclave_metadata_addr_valid_1;
@@ -236,6 +247,8 @@ procedure measurement_proof_part1()
   modifies tap_enclave_metadata_regs_1;
   modifies tap_enclave_metadata_paused_1;
   modifies tap_enclave_metadata_cache_conflict_1;
+  modifies tap_enclave_metadata_privileged_1;
+  modifies tap_enclave_metadata_owner_map_1;
   modifies cpu_mem_2;
   modifies cpu_regs_2;
   modifies cpu_pc_2;
@@ -243,10 +256,6 @@ procedure measurement_proof_part1()
   modifies cpu_addr_valid_2;
   modifies cpu_addr_map_2;
   modifies cpu_owner_map_2;
-  modifies untrusted_addr_valid_2;
-  modifies untrusted_addr_map_2;
-  modifies untrusted_regs_2;
-  modifies untrusted_pc_2;
   modifies tap_enclave_metadata_valid_2;
   modifies tap_enclave_metadata_addr_map_2;
   modifies tap_enclave_metadata_addr_valid_2;
@@ -256,12 +265,20 @@ procedure measurement_proof_part1()
   modifies tap_enclave_metadata_regs_2;
   modifies tap_enclave_metadata_paused_2;
   modifies tap_enclave_metadata_cache_conflict_2;
+  modifies tap_enclave_metadata_privileged_2;
+  modifies tap_enclave_metadata_owner_map_2;
 
   ensures (forall v : vaddr_t :: excl_match(e_excl_vaddr_1, e_excl_vaddr_2, v));
   ensures (forall v : vaddr_t :: addr_valid_match(e_excl_vaddr_1, e_excl_vaddr_2, e_addr_valid_1, e_addr_valid_2, v));
   ensures (forall v : vaddr_t :: private_data_match(e_excl_vaddr_1, e_excl_vaddr_2, e_addr_map_1, e_addr_map_2, cpu_mem_1, cpu_mem_2, v));
   ensures (forall ri : regindex_t :: valid_regindex(ri) ==> (cpu_regs_1[ri] == cpu_regs_2[ri]));
   ensures (e_entrypoint_1 == e_entrypoint_2);
+  ensures (e_privileged_1 == e_privileged_2);
+  // PE structure consistency
+  ensures (forall e : tap_enclave_id_t :: encl_owner_map_match( tap_enclave_metadata_valid_1, tap_enclave_metadata_valid_2, 
+                                                                tap_enclave_metadata_owner_map_1, tap_enclave_metadata_owner_map_2,
+                                                                e, eid_1, eid_2));
+
   ensures (current_mode == mode_untrusted);
   ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid_1[e]) ==> 
@@ -333,6 +350,8 @@ procedure measurement_proof_part1()
   ensures (forall v : vaddr_t ::
                 tap_enclave_metadata_addr_excl_2[eid_2][v] ==> 
                 (cpu_owner_map_2[tap_enclave_metadata_addr_map_2[eid_2][v]] == eid_2));
+  // extend exclusive memory consistency.
+
   //----------------------------------------------------------------------//
   // invariants about the states of the CPUs.                             //
   //----------------------------------------------------------------------//
@@ -359,19 +378,20 @@ procedure measurement_proof_part1()
   call SaveContext_1();
   call SaveContext_2();
 
+  assume valid_enclave_id_index(eid_1) && valid_enclave_id_index(eid_2);
   // Enclave 1
   call RestoreContext_1();
-  call current_mode_1 := InitialHavoc();
+  call current_mode_1 := InitialHavoc(eid_1);
   call InitOSMem(e_excl_map_1, e_container_data_1);
-  call status := launch(eid_1, e_addr_valid_1, e_addr_map_1, e_excl_vaddr_1, e_excl_map_1, e_entrypoint_1);
+  call status := launch(eid_1, e_addr_valid_1, e_addr_map_1, e_excl_vaddr_1, e_excl_map_1, e_entrypoint_1, e_privileged_1);
   assume status == enclave_op_success;
   call SaveContext_1();
 
   // Repeat for second enclave.
   call RestoreContext_2();
-  call current_mode_2 := InitialHavoc();
+  call current_mode_2 := InitialHavoc(eid_2);
   call InitOSMem(e_excl_map_2, e_container_data_2);
-  call status := launch(eid_2, e_addr_valid_2, e_addr_map_2, e_excl_vaddr_2, e_excl_map_2, e_entrypoint_2);
+  call status := launch(eid_2, e_addr_valid_2, e_addr_map_2, e_excl_vaddr_2, e_excl_map_2, e_entrypoint_2, e_privileged_2);
   assume status == enclave_op_success;
   call SaveContext_2();
 
@@ -383,7 +403,12 @@ procedure measurement_proof_part1()
                                         cpu_mem_1,          cpu_mem_2, 
                                         cpu_regs_1,         cpu_regs_2,
                                         e_entrypoint_1,     e_entrypoint_2,
-                                        e_entrypoint_1,     e_entrypoint_2);
+                                        e_entrypoint_1,     e_entrypoint_2,
+                                        e_privileged_1,     e_privileged_2,
+                                        tap_enclave_metadata_owner_map_1, 
+                                        tap_enclave_metadata_owner_map_2,
+                                        tap_enclave_metadata_valid_1,
+                                        tap_enclave_metadata_valid_2 );
   assert ((forall v : vaddr_t :: 
                 (excl_match(e_excl_vaddr_1, e_excl_vaddr_2, v)                 &&
                  addr_valid_match(e_excl_vaddr_1, e_excl_vaddr_2, 
@@ -393,8 +418,15 @@ procedure measurement_proof_part1()
                                     cpu_mem_1, cpu_mem_2, v)))                 &&
            (forall ri : regindex_t :: valid_regindex(ri) ==> 
                                         (cpu_regs_1[ri] == cpu_regs_2[ri]))    &&
-           (e_entrypoint_1 == e_entrypoint_2))
+           (e_entrypoint_1 == e_entrypoint_2)                                  && 
+           (e_privileged_1 == e_privileged_2)                                  && 
+           (forall e : tap_enclave_id_t :: 
+                encl_owner_map_match( tap_enclave_metadata_valid_1, tap_enclave_metadata_valid_2, 
+                                      tap_enclave_metadata_owner_map_1, tap_enclave_metadata_owner_map_2,
+                                      e, eid_1, eid_2))
+           )
           <==> (measurement_1p == measurement_2p);
+  // Proof p1 over. Prove p2 based on p1.
   assume measurement_1p == measurement_2p;
   assert current_mode_1 == current_mode_2;
   current_mode := current_mode_1;
@@ -420,10 +452,6 @@ procedure measurement_proof_part2
   modifies cache_valid_map, cache_tag_map;
   modifies cache_valid_map_1, cache_tag_map_1;
   modifies cache_valid_map_2, cache_tag_map_2;
-  modifies untrusted_addr_valid;
-  modifies untrusted_addr_map;
-  modifies untrusted_regs;
-  modifies untrusted_pc;
   modifies tap_enclave_metadata_valid;
   modifies tap_enclave_metadata_addr_map;
   modifies tap_enclave_metadata_addr_valid;
@@ -433,6 +461,8 @@ procedure measurement_proof_part2
   modifies tap_enclave_metadata_regs;
   modifies tap_enclave_metadata_paused;
   modifies tap_enclave_metadata_cache_conflict;
+  modifies tap_enclave_metadata_privileged;
+  modifies tap_enclave_metadata_owner_map;
   modifies cpu_mem_1;
   modifies cpu_regs_1;
   modifies cpu_pc_1;
@@ -440,10 +470,6 @@ procedure measurement_proof_part2
   modifies cpu_addr_valid_1;
   modifies cpu_addr_map_1;
   modifies cpu_owner_map_1;
-  modifies untrusted_addr_valid_1;
-  modifies untrusted_addr_map_1;
-  modifies untrusted_regs_1;
-  modifies untrusted_pc_1;
   modifies tap_enclave_metadata_valid_1;
   modifies tap_enclave_metadata_addr_map_1;
   modifies tap_enclave_metadata_addr_valid_1;
@@ -453,6 +479,8 @@ procedure measurement_proof_part2
   modifies tap_enclave_metadata_regs_1;
   modifies tap_enclave_metadata_paused_1;
   modifies tap_enclave_metadata_cache_conflict_1;
+  modifies tap_enclave_metadata_privileged_1;
+  modifies tap_enclave_metadata_owner_map_1;
   modifies cpu_mem_2;
   modifies cpu_regs_2;
   modifies cpu_pc_2;
@@ -460,10 +488,6 @@ procedure measurement_proof_part2
   modifies cpu_addr_valid_2;
   modifies cpu_addr_map_2;
   modifies cpu_owner_map_2;
-  modifies untrusted_addr_valid_2;
-  modifies untrusted_addr_map_2;
-  modifies untrusted_regs_2;
-  modifies untrusted_pc_2;
   modifies tap_enclave_metadata_valid_2;
   modifies tap_enclave_metadata_addr_map_2;
   modifies tap_enclave_metadata_addr_valid_2;
@@ -473,6 +497,8 @@ procedure measurement_proof_part2
   modifies tap_enclave_metadata_regs_2;
   modifies tap_enclave_metadata_paused_2;
   modifies tap_enclave_metadata_cache_conflict_2;
+  modifies tap_enclave_metadata_privileged_2;
+  modifies tap_enclave_metadata_owner_map_2;
 
   requires (forall v : vaddr_t :: excl_match(e_addr_excl_1, e_addr_excl_2, v));
   requires (forall v : vaddr_t :: addr_valid_match(e_addr_excl_1, e_addr_excl_2, 
@@ -725,10 +751,6 @@ procedure measurement_proof()
   modifies cache_valid_map, cache_tag_map;
   modifies cache_valid_map_1, cache_tag_map_1;
   modifies cache_valid_map_2, cache_tag_map_2;
-  modifies untrusted_addr_valid;
-  modifies untrusted_addr_map;
-  modifies untrusted_regs;
-  modifies untrusted_pc;
   modifies tap_enclave_metadata_valid;
   modifies tap_enclave_metadata_addr_map;
   modifies tap_enclave_metadata_addr_valid;
@@ -738,6 +760,8 @@ procedure measurement_proof()
   modifies tap_enclave_metadata_regs;
   modifies tap_enclave_metadata_paused;
   modifies tap_enclave_metadata_cache_conflict;
+  modifies tap_enclave_metadata_privileged;
+  modifies tap_enclave_metadata_owner_map;
   modifies cpu_mem_1;
   modifies cpu_regs_1;
   modifies cpu_pc_1;
@@ -745,10 +769,6 @@ procedure measurement_proof()
   modifies cpu_addr_valid_1;
   modifies cpu_addr_map_1;
   modifies cpu_owner_map_1;
-  modifies untrusted_addr_valid_1;
-  modifies untrusted_addr_map_1;
-  modifies untrusted_regs_1;
-  modifies untrusted_pc_1;
   modifies tap_enclave_metadata_valid_1;
   modifies tap_enclave_metadata_addr_map_1;
   modifies tap_enclave_metadata_addr_valid_1;
@@ -758,6 +778,8 @@ procedure measurement_proof()
   modifies tap_enclave_metadata_regs_1;
   modifies tap_enclave_metadata_paused_1;
   modifies tap_enclave_metadata_cache_conflict_1;
+  modifies tap_enclave_metadata_privileged_1;
+  modifies tap_enclave_metadata_owner_map_1;
   modifies cpu_mem_2;
   modifies cpu_regs_2;
   modifies cpu_pc_2;
@@ -765,10 +787,6 @@ procedure measurement_proof()
   modifies cpu_addr_valid_2;
   modifies cpu_addr_map_2;
   modifies cpu_owner_map_2;
-  modifies untrusted_addr_valid_2;
-  modifies untrusted_addr_map_2;
-  modifies untrusted_regs_2;
-  modifies untrusted_pc_2;
   modifies tap_enclave_metadata_valid_2;
   modifies tap_enclave_metadata_addr_map_2;
   modifies tap_enclave_metadata_addr_valid_2;
@@ -778,6 +796,8 @@ procedure measurement_proof()
   modifies tap_enclave_metadata_regs_2;
   modifies tap_enclave_metadata_paused_2;
   modifies tap_enclave_metadata_cache_conflict_2;
+  modifies tap_enclave_metadata_privileged_2;
+  modifies tap_enclave_metadata_owner_map_2;
 {
   var eid_1, eid_2                   : tap_enclave_id_t;
   var e_addr_valid_1, e_addr_valid_2 : addr_valid_t;
@@ -785,20 +805,24 @@ procedure measurement_proof()
   var e_excl_map_1, e_excl_map_2     : excl_map_t;
   var e_excl_vaddr_1, e_excl_vaddr_2 : excl_vaddr_t;
   var e_entrypoint_1, e_entrypoint_2 : vaddr_t;
+  var e_privileged_1, e_privileged_2 : bool;
   var current_mode                   : mode_t;
 
+  // proof stage 1.
   call eid_1, eid_2,
        e_addr_valid_1, e_addr_valid_2,
        e_addr_map_1, e_addr_map_2, 
        e_excl_vaddr_1, e_excl_vaddr_2,
        e_excl_map_1, e_excl_map_2,
        e_entrypoint_1, e_entrypoint_2,
+       e_privileged_1, e_privileged_2,
        current_mode                     := measurement_proof_part1();
-  call measurement_proof_part2(
-         eid_1, eid_2,
-         e_addr_valid_1, e_addr_valid_2,
-         e_addr_map_1, e_addr_map_2,
-         e_excl_vaddr_1, e_excl_vaddr_2,
-         e_excl_map_1, e_excl_map_2,
-         e_entrypoint_1, e_entrypoint_2);
+  // proof stage 2.
+  // call measurement_proof_part2(
+  //        eid_1, eid_2,
+  //        e_addr_valid_1, e_addr_valid_2,
+  //        e_addr_map_1, e_addr_map_2,
+  //        e_excl_vaddr_1, e_excl_vaddr_2,
+  //        e_excl_map_1, e_excl_map_2,
+  //        e_entrypoint_1, e_entrypoint_2);
 }
