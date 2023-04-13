@@ -9,9 +9,21 @@ type word_t  = bv32;
 // constants and functions for vaddr_t                                  //
 // -------------------------------------------------------------------- //
 const kmax_vaddr_t : vaddr_t;
-axiom kmax_vaddr_t == 4294967295bv32;
+// axiom kmax_vaddr_t == 4294967295bv32;
+// axiom kmax_vaddr_t == 262144bv32;
+// axiom kmax_vaddr_t == 131072bv32;
+// axiom kmax_vaddr_t == 65536bv32;
+axiom kmax_vaddr_t == 32768bv32;
+
 const kmax_vaddr_t_as_int : int;
-axiom kmax_vaddr_t_as_int == 4294967295;
+// axiom kmax_vaddr_t_as_int == 4294967295;
+
+// axiom kmax_vaddr_t_as_int == 262144;
+// axiom kmax_vaddr_t_as_int == 131072;
+// axiom kmax_vaddr_t_as_int == 65536;
+axiom kmax_vaddr_t_as_int == 32768;
+
+
 const k0_vaddr_t : vaddr_t;
 axiom k0_vaddr_t == 0bv32;
 const k1_vaddr_t : vaddr_t;
@@ -98,5 +110,9 @@ axiom (forall w : word_t :: word2int(w) >= 0 && word2int(w) <= kmax_word_t_as_in
 
 function vaddr2int(va : vaddr_t) : int;
 axiom (forall v1, v2 : vaddr_t :: (v1 != v2) ==> (vaddr2int(v1) != vaddr2int(v2)));
-axiom (forall w : vaddr_t :: vaddr2int(w) >= 0 && vaddr2int(w) <= kmax_vaddr_t_as_int);
+axiom (forall w : vaddr_t :: vaddr2int(w) >= 0 && vaddr2int(w) < kmax_vaddr_t_as_int);
+
+function bool2int(bl : bool) : int;
+axiom (forall bl : bool ::  bl ==>  bool2int(bl) == 1);
+axiom (forall bl : bool :: !bl ==>  bool2int(bl) == 0);
 

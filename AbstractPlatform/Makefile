@@ -5,7 +5,7 @@ else
 	BOOGIESMOKE:=
 endif
 BOOGIE := boogie
-BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=1 /errorLimit:1 $(BOOGIESMOKE) \
+BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
 					/proverOpt:O:parallel.enable=true \
 					/traceverify \
 					/trace	\
