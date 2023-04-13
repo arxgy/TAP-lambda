@@ -177,7 +177,7 @@ procedure measure_state_self_composed(
   requires (ownermap1[tap_null_enc_id] == tap_null_enc_id);
   requires (ownermap2[tap_null_enc_id] == tap_null_enc_id);
 
-  ensures ((forall v : vaddr_t :: (LT_va(v, kmax_vaddr_t)) ==>
+  ensures ((forall v : vaddr_t :: 
               (excl_match(ev1, ev2, v)                                                 &&
                addr_valid_match(ev1, ev2, av1, av2, v)                                 &&
                private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                     &&
@@ -186,7 +186,7 @@ procedure measure_state_self_composed(
            (forall e : tap_enclave_id_t :: valid_enclave_id_index(e) ==>
               encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))
           <==> (t1 == t2);
-  ensures ((exists v : vaddr_t :: (LT_va(v, kmax_vaddr_t)) &&
+  ensures ((exists v : vaddr_t :: 
               (!excl_match(ev1, ev2, v)                                               ||
                !addr_valid_match(ev1, ev2, av1, av2, v)                               ||
                !private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                   ||
@@ -267,65 +267,62 @@ procedure measure_state_self_composed(
           (exists e : tap_enclave_id_t :: valid_enclave_id_index(e) && 
               !encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))
          <==> (t1 != t2);
-  
+  // assume false;
   // Loop 2. update digest/measurement by v
-  // assume t1 == t2;
-  // va := k0_vaddr_t;
-  // while (LT_va(va, kmax_vaddr_t)) 
-  //   invariant ((forall ri : regindex_t :: valid_regindex(ri) ==> (regs1[ri] == regs2[ri])) &&
-  //              pc1 == pc2 && entrypoint1 == entrypoint2 && privileged1 == privileged2      &&
-  //              (forall e : tap_enclave_id_t :: valid_enclave_id_index(e) ==>
-  //                 encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))  &&
-  //              (forall v : vaddr_t :: 
-  //                 (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) ==> 
-  //                     (excl_match(ev1, ev2, v) &&
-  //                     addr_valid_match(ev1, ev2, av1, av2, v) &&
-  //                     private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                  
-  //              ==> (t1 == t2);
-  //   invariant ((exists ri : regindex_t :: valid_regindex(ri) && (regs1[ri] != regs2[ri])) ||
-  //              pc1 != pc2 || entrypoint1 != entrypoint2 || privileged1 != privileged2 ||
-  //              (exists v : vaddr_t :: 
-  //                  (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) && 
-  //                     (!excl_match(ev1, ev2, v) ||
-  //                      !addr_valid_match(ev1, ev2, av1, av2, v) ||
-  //                      !private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                 ||
-  //              (exists e : tap_enclave_id_t :: valid_enclave_id_index(e) &&
-  //                 !encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))
-  //              ==> (t1 != t2);
-  // {
-  //   t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
-  //   t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
-  //   if (t1 != t2) { return; }
-  //   va := PLUS_va(va, k1_vaddr_t);
-  // }
-  // Deprecated appendant
-  // t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
-  // t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
-
-  // Loop 2 with assumption.
-  assume t1 == t2;
   va := k0_vaddr_t;
-  while (LT_va(va, kmax_vaddr_t))
-    invariant (forall v : vaddr_t :: 
-                  (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) ==> 
+  while (LT_va(va, kmax_vaddr_t)) 
+    invariant ((forall ri : regindex_t :: valid_regindex(ri) ==> (regs1[ri] == regs2[ri])) &&
+               pc1 == pc2 && entrypoint1 == entrypoint2 && privileged1 == privileged2      &&
+               (forall e : tap_enclave_id_t :: valid_enclave_id_index(e) ==>
+                  encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))  &&
+               (forall v : vaddr_t :: 
+                  LT_va(v, va) ==> 
                       (excl_match(ev1, ev2, v) &&
                       addr_valid_match(ev1, ev2, av1, av2, v) &&
                       private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                  
                ==> (t1 == t2);
-    invariant (exists v : vaddr_t :: 
-                   (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) && 
+    invariant ((exists ri : regindex_t :: valid_regindex(ri) && (regs1[ri] != regs2[ri])) ||
+               pc1 != pc2 || entrypoint1 != entrypoint2 || privileged1 != privileged2 ||
+               (exists v : vaddr_t :: 
+                   LT_va(v, va) && 
                       (!excl_match(ev1, ev2, v) ||
                        !addr_valid_match(ev1, ev2, av1, av2, v) ||
-                       !private_data_match(ev1, ev2, am1, am2, m1, m2, v))) 
+                       !private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                 ||
+               (exists e : tap_enclave_id_t :: valid_enclave_id_index(e) &&
+                  !encl_owner_map_match(valid1, valid2, ownermap1, ownermap2, e, e1, e2)))
                ==> (t1 != t2);
   {
     t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
     t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
     va := PLUS_va(va, k1_vaddr_t);
-    // if (t1 != t2) {
-    //   return;
-    // }
   }
+  t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
+  t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
+
+  // // Loop 2 with assumption.
+  // assume t1 == t2;
+  // va := k0_vaddr_t;
+  // while (LT_va(va, kmax_vaddr_t))
+  //   invariant (forall v : vaddr_t :: 
+  //                 (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) ==> 
+  //                     (excl_match(ev1, ev2, v) &&
+  //                     addr_valid_match(ev1, ev2, av1, av2, v) &&
+  //                     private_data_match(ev1, ev2, am1, am2, m1, m2, v)))                  
+  //              ==> (t1 == t2);
+  //   invariant (exists v : vaddr_t :: 
+  //                  (LT_va(v, va) && LT_va(v, kmax_vaddr_t)) && 
+  //                     (!excl_match(ev1, ev2, v) ||
+  //                      !addr_valid_match(ev1, ev2, av1, av2, v) ||
+  //                      !private_data_match(ev1, ev2, am1, am2, m1, m2, v))) 
+  //              ==> (t1 != t2);
+  // {
+  //   t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
+  //   t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
+  //   va := PLUS_va(va, k1_vaddr_t);
+  // }
+  // t1 := update_digest_virt_addr(av1, am1, ev1, m1, va, t1);
+  // t2 := update_digest_virt_addr(av2, am2, ev2, m2, va, t2);
+
 }
 
 //--------------------------------------------------------------------------//
