@@ -59,7 +59,7 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     // if (!tap_enclave_metadata_privileged[cpu_enclave_id]) {
         
     // }
-    // assume i_eid != cpu_enclave_id_1 && i_eid != cpu_enclave_id_2;
+    assume tap_enclave_metadata_privileged[cpu_enclave_id] ==> i_eid != cpu_enclave_id_1 && i_eid != cpu_enclave_id_2;
     is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
                          (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
                          (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
@@ -76,7 +76,7 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     // select proper virtual address.
     assume tap_enclave_metadata_addr_excl_1[i_eid][l_vaddr] <==> tap_enclave_metadata_addr_excl_2[i_eid][l_vaddr];
 
-    if(tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
+    if(tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
         // assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
         // havoc way; assume valid_cache_way_index(way);
         // call l_data, excp, hit := load_va(l_vaddr, way);
@@ -128,16 +128,16 @@ function is_measurement_untrusted_op(op : tap_proof_op_t) : bool
   op == tap_proof_op_exit   || 
   op == tap_proof_op_pause
 }
-
+// enter pass, resume failed
 function is_measurement_privilege_op(op : tap_proof_op_t) : bool
 {
-  op == tap_proof_op_enter      || 
-  op == tap_proof_op_compute    ||
-  op == tap_proof_op_destroy    || 
-  op == tap_proof_op_exit       || 
-  op == tap_proof_op_launch     ||
-  op == tap_proof_op_resume     ||
-  op == tap_proof_op_pause
+  // op == tap_proof_op_enter      
+  // op == tap_proof_op_compute    
+  // op == tap_proof_op_destroy     
+  // op == tap_proof_op_exit       
+  // op == tap_proof_op_launch     
+  op == tap_proof_op_resume     
+  // op == tap_proof_op_pause
 }
 
 function is_measurement_enclave_op(op : tap_proof_op_t) : bool
@@ -885,7 +885,8 @@ procedure measurement_proof_part2
   var current_mode                                 : mode_t;
   var current_mode_1, current_mode_2               : mode_t;
   var iter                                         : int;
-
+  
+  assume !enclave_dead_1 && !enclave_dead_2;
   current_mode := mode_untrusted;
   while (*)
     //----------------------------------------------------------------------//
@@ -1104,7 +1105,9 @@ procedure measurement_proof_part2
 
     } else if (current_mode == mode_enclave) {
       // assume false;
-      assume !e_privileged_1;
+      assume e_privileged_1;
+      // assume !e_privileged_1;
+
       havoc iter;
       if (e_privileged_1) {
         assume is_measurement_privilege_op(proof_op);
