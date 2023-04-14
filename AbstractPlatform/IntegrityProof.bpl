@@ -172,7 +172,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
         cpu_regs := r_regs;
         // mode == mode_enclave means we are in trace_2.
         assert (mode == mode_enclave ==> status == enclave_op_success);
-        if (status == enclave_op_success && r_eid == eid) { 
+        if (status == enclave_op_success) { 
             if (r_eid == eid) {
                 current_mode := mode_enclave; 
             } else {
@@ -188,7 +188,7 @@ procedure {:inline 1} IntegrityAdversarialStep(
 
         // mode == mode_enclave means we are in trace_2.
         assert (mode == mode_enclave ==> status == enclave_op_success);
-        if (status == enclave_op_success && r_eid == eid) { 
+        if (status == enclave_op_success) { 
             if (r_eid == eid) {
                 current_mode := mode_enclave; 
             } else {
@@ -282,7 +282,6 @@ procedure {:inline 1} IntegrityEnclaveStep(
     var status            : enclave_op_result_t;
     var eid               : tap_enclave_id_t;   
     var regs              : regs_t;
-    var p_eid             : tap_enclave_id_t;   // designated by PE
     var p_regs            : regs_t;
     var p_container_valid : container_valid_t;
     var p_container_data  : container_data_t;
@@ -347,7 +346,7 @@ procedure {:inline 1} IntegrityEnclaveStep(
             assert mode == mode_untrusted ==> status == enclave_op_success;
             
         } else if (op == tap_proof_op_destroy) {
-            call status := destroy(p_eid);
+            call status := destroy(r_eid);
             next_mode := mode_enclave;
 
         }  else if (op == tap_proof_op_resume) {
