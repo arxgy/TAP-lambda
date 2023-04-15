@@ -1,7 +1,9 @@
 // -------------------------------------------------------------------- //
 // address types.                                                       //
 // -------------------------------------------------------------------- //
-type vaddr_t = bv32;
+// type vaddr_t = bv32;
+// type vaddr_t = bv17;
+type vaddr_t = bv16;
 type wap_addr_t = bv22;
 type word_t  = bv32;
 
@@ -11,23 +13,31 @@ type word_t  = bv32;
 const kmax_vaddr_t : vaddr_t;
 // axiom kmax_vaddr_t == 4294967295bv32;
 // axiom kmax_vaddr_t == 262144bv32;
-// axiom kmax_vaddr_t == 131072bv32;
+// axiom kmax_vaddr_t == 131071bv17;
+axiom kmax_vaddr_t == 65535bv16;
+
 // axiom kmax_vaddr_t == 65536bv32;
-axiom kmax_vaddr_t == 32768bv32;
+// axiom kmax_vaddr_t == 32768bv32;
 
 const kmax_vaddr_t_as_int : int;
 // axiom kmax_vaddr_t_as_int == 4294967295;
 
 // axiom kmax_vaddr_t_as_int == 262144;
-// axiom kmax_vaddr_t_as_int == 131072;
-// axiom kmax_vaddr_t_as_int == 65536;
-axiom kmax_vaddr_t_as_int == 32768;
+// axiom kmax_vaddr_t_as_int == 131071;
+axiom kmax_vaddr_t_as_int == 65535;
+// axiom kmax_vaddr_t_as_int == 32767;
 
 
 const k0_vaddr_t : vaddr_t;
-axiom k0_vaddr_t == 0bv32;
+// axiom k0_vaddr_t == 0bv17;
+axiom k0_vaddr_t == 0bv16;
+// axiom k0_vaddr_t == 0bv32;
+
 const k1_vaddr_t : vaddr_t;
-axiom k1_vaddr_t == 1bv32;
+// axiom k1_vaddr_t == 1bv17;
+axiom k1_vaddr_t == 1bv16;
+// axiom k1_vaddr_t == 1bv32;
+
 function {:bvbuiltin "bvshl"} LSHIFT_va(p1: vaddr_t, p2: vaddr_t) : vaddr_t;
 function {:bvbuiltin "bvadd"} PLUS_va(p1: vaddr_t, p2: vaddr_t) : vaddr_t;
 function {:bvbuiltin "bvsub"} MINUS_va(p1: vaddr_t, p2: vaddr_t) : vaddr_t;

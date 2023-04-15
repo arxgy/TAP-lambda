@@ -52,14 +52,9 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     
     // operation sync.
     i_eid := uf_load_selector(cpu_pc, pc_op, r0, r1);
-    // if (cpu_enclave_id != another_eid && i_eid == another_eid) {
-    //     i_eid := cpu_enclave_id;
-    // }
     assume !tap_enclave_metadata_privileged[cpu_enclave_id] ==> i_eid == cpu_enclave_id; 
-    // if (!tap_enclave_metadata_privileged[cpu_enclave_id]) {
-        
-    // }
     assume tap_enclave_metadata_privileged[cpu_enclave_id] ==> i_eid != cpu_enclave_id_1 && i_eid != cpu_enclave_id_2;
+    
     is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
                          (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
                          (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
@@ -76,7 +71,7 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     // select proper virtual address.
     assume tap_enclave_metadata_addr_excl_1[i_eid][l_vaddr] <==> tap_enclave_metadata_addr_excl_2[i_eid][l_vaddr];
 
-    if(tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
+    if(tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
         // assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
         // havoc way; assume valid_cache_way_index(way);
         // call l_data, excp, hit := load_va(l_vaddr, way);
@@ -84,7 +79,7 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
         // load from exclusive memory
         havoc way; 
         assume valid_cache_way_index(way);
-        call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
+        call l_data, excp, hit := load_va(eid, l_vaddr, way);
         assert excp == excp_none;
     } else {
         l_data := uf_load_data(l_vaddr, iter);
@@ -131,13 +126,13 @@ function is_measurement_untrusted_op(op : tap_proof_op_t) : bool
 // enter pass, resume failed
 function is_measurement_privilege_op(op : tap_proof_op_t) : bool
 {
-  // op == tap_proof_op_enter      
-  // op == tap_proof_op_compute    
-  // op == tap_proof_op_destroy     
-  // op == tap_proof_op_exit       
-  // op == tap_proof_op_launch     
-  op == tap_proof_op_resume     
-  // op == tap_proof_op_pause
+  op == tap_proof_op_enter      || 
+  op == tap_proof_op_compute    ||
+  op == tap_proof_op_destroy    ||
+  op == tap_proof_op_exit       ||
+  op == tap_proof_op_launch     ||
+  op == tap_proof_op_resume     ||
+  op == tap_proof_op_pause
 }
 
 function is_measurement_enclave_op(op : tap_proof_op_t) : bool
@@ -581,7 +576,6 @@ procedure measurement_proof_part1()
 {
   var status, status_1, status_2                   : enclave_op_result_t;
   var e_container_data_1, e_container_data_2       : container_data_t;
-  var enclave_dead_1, enclave_dead_2               : bool;
   var e_proof_op, r_proof_op                       : tap_proof_op_t;
   var measurement_1, measurement_2                 : measurement_t;
   var measurement_1p, measurement_2p               : measurement_t;
@@ -871,7 +865,6 @@ procedure measurement_proof_part2
   var r_eid                                        : tap_enclave_id_t;
   var status, status_1, status_2                   : enclave_op_result_t;
   var e_container_data_1, e_container_data_2       : container_data_t;
-  var enclave_dead_1, enclave_dead_2               : bool;
   var e_proof_op, r_proof_op                       : tap_proof_op_t;
   var measurement_1, measurement_2                 : measurement_t;
   var measurement_1p, measurement_2p               : measurement_t;
@@ -886,7 +879,6 @@ procedure measurement_proof_part2
   var current_mode_1, current_mode_2               : mode_t;
   var iter                                         : int;
   
-  assume !enclave_dead_1 && !enclave_dead_2;
   current_mode := mode_untrusted;
   while (*)
     //----------------------------------------------------------------------//
@@ -965,10 +957,10 @@ procedure measurement_proof_part2
         (tap_enclave_metadata_valid_2[e] && (tap_enclave_metadata_privileged_2[e] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]) ==> 
             (tap_enclave_metadata_addr_excl_2[e][v] <==> cpu_owner_map_2[tap_enclave_metadata_addr_map_2[e][v]] == e)));
     invariant (forall v : vaddr_t :: 
-        (!enclave_dead_1 && (tap_enclave_metadata_privileged_1[cpu_enclave_id_1] || tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[cpu_enclave_id_1]])) ==> 
+        ((tap_enclave_metadata_privileged_1[cpu_enclave_id_1] || tap_enclave_metadata_privileged_1[tap_enclave_metadata_owner_map_1[cpu_enclave_id_1]])) ==> 
             (tap_enclave_metadata_addr_excl_1[cpu_enclave_id_1][v] <==> cpu_owner_map_1[cpu_addr_map_1[v]] == cpu_enclave_id_1));
     invariant (forall v : vaddr_t :: 
-        (!enclave_dead_2 && (tap_enclave_metadata_privileged_2[cpu_enclave_id_2] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[cpu_enclave_id_2]])) ==> 
+        ((tap_enclave_metadata_privileged_2[cpu_enclave_id_2] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[cpu_enclave_id_2]])) ==> 
             (tap_enclave_metadata_addr_excl_2[cpu_enclave_id_2][v] <==> cpu_owner_map_2[cpu_addr_map_2[v]] == cpu_enclave_id_2));
 
     // eid is valid.
@@ -1028,11 +1020,14 @@ procedure measurement_proof_part2
 
     // PE sync. the two (PE) enclave's children pause state must be same. 
     // Apr 4, 2023.
-    invariant (!enclave_dead_1 && !enclave_dead_2) ==>
-                (forall e : tap_enclave_id_t :: 
+    // invariant (!enclave_dead_1 && !enclave_dead_2) ==>
+    //             (forall e : tap_enclave_id_t :: 
+    //                 (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid_1) ==> 
+    //                     tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]);
+    invariant (forall e : tap_enclave_id_t :: 
                     (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid_1) ==> 
                         tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]);
-    
+
     invariant (current_mode == mode_untrusted) ==> tap_enclave_metadata_valid_1[cpu_enclave_id_1];
     invariant (current_mode == mode_untrusted) ==> tap_enclave_metadata_valid_2[cpu_enclave_id_2];
 
@@ -1093,7 +1088,6 @@ procedure measurement_proof_part2
   {
     havoc r_eid, proof_op, r_regs;
     if (current_mode == mode_untrusted) {
-      assume false;
       assume is_measurement_untrusted_op(proof_op);
       call RestoreContext_1();
       call status_1, current_mode_1 := MeasurementUntrustedOp(current_mode, proof_op, eid_1, r_regs);
@@ -1103,10 +1097,10 @@ procedure measurement_proof_part2
       call status_2, current_mode_2 := MeasurementUntrustedOp(current_mode, proof_op, eid_2, r_regs);
       call SaveContext_2();
 
+      assert status_1 == status_2;
+      assert current_mode_1 == current_mode_2;
+
     } else if (current_mode == mode_enclave) {
-      // assume false;
-      assume e_privileged_1;
-      // assume !e_privileged_1;
 
       havoc iter;
       if (e_privileged_1) {
