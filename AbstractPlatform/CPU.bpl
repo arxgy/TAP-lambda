@@ -250,7 +250,7 @@ procedure {:inline 1} load_va(eid : tap_enclave_id_t , vaddr : vaddr_t, repl_way
     } else {
         // time-consuming
         // tap_enclave_metadata_addr_valid[eid][vaddr] := tap_set_addr_perm_a(tap_enclave_metadata_addr_valid[eid][vaddr]);
-        // inspect_data := cpu_mem[paddr];
+        inspect_data := cpu_mem[paddr];
         data := k0_word_t;
     }
     excp := excp_none;
