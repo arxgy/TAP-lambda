@@ -52,9 +52,10 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
     
     // operation sync.
     i_eid := uf_load_selector(cpu_pc, pc_op, r0, r1);
-    assume !tap_enclave_metadata_privileged[cpu_enclave_id] ==> i_eid == cpu_enclave_id; 
-    assume tap_enclave_metadata_privileged[cpu_enclave_id] ==> i_eid != cpu_enclave_id_1 && i_eid != cpu_enclave_id_2;
-    
+    // strongest version.
+    if (!tap_enclave_metadata_privileged[cpu_enclave_id] || i_eid == another_eid) {
+        i_eid := cpu_enclave_id;
+    } 
     is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
                          (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
                          (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
@@ -1088,6 +1089,7 @@ procedure measurement_proof_part2
   {
     havoc r_eid, proof_op, r_regs;
     if (current_mode == mode_untrusted) {
+    //   assume false;
       assume is_measurement_untrusted_op(proof_op);
       call RestoreContext_1();
       call status_1, current_mode_1 := MeasurementUntrustedOp(current_mode, proof_op, eid_1, r_regs);
