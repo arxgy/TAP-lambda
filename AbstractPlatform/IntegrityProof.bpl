@@ -55,7 +55,8 @@ procedure {:inline 1} EnclaveComputation(iter : int)
 
     // load address and value.
     l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
-    assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+    // assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+    assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][l_vaddr]);
     // select proper virtual address.
     assume tap_enclave_metadata_addr_excl_1[i_eid][l_vaddr] <==> tap_enclave_metadata_addr_excl_2[i_eid][l_vaddr];
 

@@ -227,7 +227,7 @@ procedure {:inline 1} load_va(eid : tap_enclave_id_t , vaddr : vaddr_t, repl_way
     inspect_data := k0_word_t;
 
     // translate VA -> PA.
-    if (!tap_addr_perm_r(cpu_addr_valid[vaddr])) { 
+    if (!tap_addr_perm_r(tap_enclave_metadata_addr_valid[eid][vaddr])) { 
         excp := excp_os_protection_fault; return; 
     }
     paddr := tap_enclave_metadata_addr_map[eid][vaddr];

@@ -67,12 +67,13 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
 
     // load address and value.
     l_vaddr := uf_mem_load_vaddr(cpu_pc, pc_op, r0, r1);
-    assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+    // assume tap_addr_perm_r(cpu_addr_valid[l_vaddr]);
+    assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][l_vaddr]);
 
     // select proper virtual address.
     assume tap_enclave_metadata_addr_excl_1[i_eid][l_vaddr] <==> tap_enclave_metadata_addr_excl_2[i_eid][l_vaddr];
 
-    if(tap_enclave_metadata_addr_excl[eid][l_vaddr]) {
+    if(tap_enclave_metadata_addr_excl[i_eid][l_vaddr]) {
         // assert cpu_owner_map[cpu_addr_map[l_vaddr]] == eid;
         // havoc way; assume valid_cache_way_index(way);
         // call l_data, excp, hit := load_va(l_vaddr, way);
@@ -80,7 +81,7 @@ procedure {:inline 1} MeasurementEnclaveComputation(iter : int)
         // load from exclusive memory
         havoc way; 
         assume valid_cache_way_index(way);
-        call l_data, excp, hit := load_va(eid, l_vaddr, way);
+        call l_data, excp, hit := load_va(i_eid, l_vaddr, way);
         assert excp == excp_none;
     } else {
         l_data := uf_load_data(l_vaddr, iter);

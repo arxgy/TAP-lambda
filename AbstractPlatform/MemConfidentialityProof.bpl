@@ -68,6 +68,7 @@ procedure ProveConfidentialityMem(
     var e_excl_map                                   : excl_map_t;
     var e_container_data_1, e_container_data_2       : container_data_t;
     var e_entrypoint_1, e_entrypoint_2               : vaddr_t;
+    var e_privileged                                 : bool;
     var e_privileged_1, e_privileged_2               : bool;
     var current_mode, current_mode_1, current_mode_2 : mode_t;
     // var enclave_dead, enclave_dead_1, enclave_dead_2 : bool;
@@ -116,13 +117,16 @@ procedure ProveConfidentialityMem(
     call SaveContext_1();
     call SaveContext_2();
 
+    // We don't make non-distinguishable claim on PE and NE.
+    // by Ganxiang Yang @ Apr 17, 2023.
+
     // launch should not leave the PC in an untenable sitation.
     assume !e_excl_map[cpu_addr_map[cpu_pc]];
     // now launch enclave_1.
     call RestoreContext_1();
     call InitOSMem(e_excl_map, e_container_data_1);
     call status := launch(eid, e_addr_valid_1, e_addr_map_1, 
-                          e_excl_vaddr_1, e_excl_map, e_entrypoint_1, e_privileged_1);
+                          e_excl_vaddr_1, e_excl_map, e_entrypoint_1, e_privileged);
     assume tap_enclave_metadata_cache_conflict[eid] == cache_conflict;
     assume status == enclave_op_success;
     call SaveContext_1();
@@ -130,7 +134,7 @@ procedure ProveConfidentialityMem(
     call RestoreContext_2();
     call InitOSMem(e_excl_map, e_container_data_2);
     call status := launch(eid, e_addr_valid_2, e_addr_map_2, 
-                          e_excl_vaddr_2, e_excl_map, e_entrypoint_2, e_privileged_2);
+                          e_excl_vaddr_2, e_excl_map, e_entrypoint_2, e_privileged);
     assume status == enclave_op_success;
     assume tap_enclave_metadata_cache_conflict[eid] == cache_conflict;
     call SaveContext_2();
@@ -154,13 +158,14 @@ procedure ProveConfidentialityMem(
         invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
 
         //  privileged relationship: unique PE
-        invariant ( e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
+        invariant ( e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
                 (tap_enclave_metadata_privileged_1[e] <==> e == eid));
-        invariant (!e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-                (!tap_enclave_metadata_privileged_1[e]));
-        invariant ( e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
+        invariant ( e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
                 (tap_enclave_metadata_privileged_2[e] <==> e == eid));
-        invariant (!e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
+
+        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
+                (!tap_enclave_metadata_privileged_1[e]));
+        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
                 (!tap_enclave_metadata_privileged_2[e]));
 
         // valid guarantee
@@ -213,8 +218,7 @@ procedure ProveConfidentialityMem(
                     (tap_enclave_metadata_privileged_2[cpu_enclave_id_2] || tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[cpu_enclave_id_2]]) ==> 
                         (tap_enclave_metadata_addr_excl_2[cpu_enclave_id_2][v] <==> cpu_owner_map_2[cpu_addr_map_2[v]] == cpu_enclave_id_2));
         
-        invariant current_mode_1 == mode_untrusted || current_mode_1 == mode_enclave;
-        invariant current_mode_2 == mode_untrusted || current_mode_2 == mode_untrusted;
+        invariant current_mode == mode_untrusted || current_mode == mode_enclave;
         // memory is not assigned to an enclave that doesn't exist.
         invariant (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                     (valid_enclave_id(e) && !tap_enclave_metadata_valid_1[e]) ==> 
@@ -229,10 +233,10 @@ procedure ProveConfidentialityMem(
                     !valid_enclave_id(e) ==> !tap_enclave_metadata_valid_1[tap_null_enc_id]);
         invariant (forall e : tap_enclave_id_t ::
                     !valid_enclave_id(e) ==> !tap_enclave_metadata_valid_2[tap_null_enc_id]);
-        invariant (current_mode_1 == mode_untrusted) ==> cpu_enclave_id_1 != eid;
-        invariant (current_mode_2 == mode_untrusted) ==> cpu_enclave_id_2 != eid;
-        invariant (current_mode_1 == mode_enclave) ==> (cpu_enclave_id_1 == eid);
-        invariant (current_mode_2 == mode_enclave) ==> (cpu_enclave_id_2 == eid);
+        invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_1 != eid);
+        invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 != eid);
+        invariant (current_mode == mode_enclave) ==> (cpu_enclave_id_1 == eid);
+        invariant (current_mode == mode_enclave) ==> (cpu_enclave_id_2 == eid);
         //-------------------------------------------------------------------//
         // Enclave 'eid' is mostly alive                                     //
         //-------------------------------------------------------------------//
@@ -274,25 +278,20 @@ procedure ProveConfidentialityMem(
         //-------------------------------------------------------------------//
         // CPU state is the same                                             //
         //-------------------------------------------------------------------//
-        // TODO: This should be further checked. Whether this condition lead to observation results.
-        // Apr 16, 2023.
-        invariant (e_privileged_1 == e_privileged_2) ==> (current_mode_1 == current_mode_2);
-
-        // Harmonized case.
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            ((current_mode_1 == mode_untrusted) ==> (cpu_pc_1 == cpu_pc_2));
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            ((current_mode_1 == mode_untrusted) ==> (cpu_regs_1 == cpu_regs_2));
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            ((current_mode_1 == mode_untrusted) ==> (cpu_addr_valid_1 == cpu_addr_valid_2));
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            ((current_mode_1 == mode_untrusted) ==> (cpu_addr_valid_1 == cpu_addr_map_2));
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            (forall pa : wap_addr_t :: (cpu_owner_map_1[pa] == cpu_owner_map_2[pa]));
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-            (forall pa : wap_addr_t :: !e_excl_map[pa] ==> (cpu_mem_1[pa] == cpu_mem_2[pa]));
-        // Chaos case.
-        // TODO.
+        invariant (current_mode_1 == current_mode_2);
+        // same PC.
+        invariant (current_mode == mode_untrusted) ==> (cpu_pc_1 == cpu_pc_2);
+        // same mode of operation.
+        invariant (cpu_enclave_id_1 == cpu_enclave_id_2);
+        // same regs.
+        invariant (current_mode == mode_untrusted) ==> (cpu_regs_1 == cpu_regs_2);
+        // same va->pa.
+        invariant (current_mode == mode_untrusted) ==> (cpu_addr_valid_1 == cpu_addr_valid_2);
+        invariant (current_mode == mode_untrusted) ==> (cpu_addr_map_1 == cpu_addr_map_2);
+        // owner map is the same.
+        invariant (forall pa : wap_addr_t :: (cpu_owner_map_1[pa] == cpu_owner_map_2[pa]));
+        // memory is the same except for the enclave memory.
+        invariant (forall pa : wap_addr_t :: !e_excl_map[pa] ==> (cpu_mem_1[pa] == cpu_mem_2[pa]));
 
         //-------------------------------------------------------------------//
         // OS state is the same                                              //
@@ -303,6 +302,18 @@ procedure ProveConfidentialityMem(
         // OS regs.
         invariant (tap_enclave_metadata_regs_1[tap_null_enc_id] == tap_enclave_metadata_regs_2[tap_null_enc_id]);
         invariant (tap_enclave_metadata_pc_1[tap_null_enc_id] == tap_enclave_metadata_pc_2[tap_null_enc_id]);
+        
+        // Stronger: applied for OS and all its children
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==> 
+            (tap_enclave_metadata_addr_valid_1[e] == tap_enclave_metadata_addr_valid_2[e]));
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==>
+            (tap_enclave_metadata_addr_map_1[e] == tap_enclave_metadata_addr_map_2[e]));
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==> 
+            (tap_enclave_metadata_regs_1[e] == tap_enclave_metadata_regs_2[e]));
+        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==> 
+            (tap_enclave_metadata_pc_1[e] == tap_enclave_metadata_pc_2[e]));
+
+
         //-------------------------------------------------------------------//
         // Enclave state is the same except for eid (mostly). Some it is the //
         // the same for eid as well (addr_map and addr_excl).                //
@@ -353,15 +364,38 @@ procedure ProveConfidentialityMem(
         invariant (forall e : tap_enclave_id_t :: 
                     (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_valid_2[e]) ==>
                         (tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]));
+                
+        // invariants about state sync between 2 traces.
+        // TODO: these properties may need extension/modification for multiple PE environment.
+        // OS/NE sync.
+        invariant (current_mode == mode_untrusted) ==> 
+                    (cpu_enclave_id_1 == tap_null_enc_id ==> 
+                        cpu_enclave_id_2 == tap_null_enc_id);
+        invariant (current_mode == mode_untrusted) ==> 
+            ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == tap_null_enc_id) ==> 
+                tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == tap_null_enc_id);
+        // due to Z3 prover's features, we add some trivial claims in the precondition of this claim.
+        invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
+            (cpu_enclave_id_1 == cpu_enclave_id_2);
+        
+        // PE sync. the PE's structure must be same.
+        invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
+                (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] == eid));
+
+        invariant (forall e : tap_enclave_id_t :: 
+                    (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) ==> 
+                        tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]);
+
     {
+        havoc r_proof_op, r_eid, r_pc, r_read, r_write, r_data, 
+                l_vaddr, s_vaddr, s_data, r_pt_eid, r_pt_va, 
+                pt_eid, pt_vaddr, pt_valid, pt_paddr, r_addr_valid, 
+                r_addr_map, r_excl_vaddr, r_excl_map, r_bmap,
+                r_container_valid, r_container_data, r_entrypoint, r_l_way, r_s_way;
+
         if (current_mode == mode_untrusted) {
             assume false;
-            havoc r_proof_op, r_eid, r_pc, r_read, r_write, r_data, 
-                  l_vaddr, s_vaddr, s_data, r_pt_eid, r_pt_va, 
-                  pt_eid, pt_vaddr, pt_valid, pt_paddr, r_addr_valid, 
-                  r_addr_map, r_excl_vaddr, r_excl_map, r_bmap,
-                  r_container_valid, r_container_data, r_entrypoint, r_l_way, r_s_way;
-
             assume valid_regindex(r_read);
             assume valid_regindex(r_write);
             assume valid_cache_way_index(r_l_way);
@@ -396,11 +430,6 @@ procedure ProveConfidentialityMem(
 
             // some sanity checks.
             assert status_1 == status_2;
-            
-            // Same mode is not guanranteed.
-            // case 1. untrusted - untrusted    -- do observation
-            // case 2. enclave - enclave        -- do different things
-            // case 3. unt - encl / encl - unt  -- encl do anything, unt do nothing or exit/pause
             assert current_mode_1 == current_mode_2;
             // Considering deprecate enclave dead.
             // assert enclave_dead_1 == enclave_dead_2;
@@ -409,8 +438,15 @@ procedure ProveConfidentialityMem(
         } else {
             assume false;
             havoc e_proof_op;
-            assume tap_proof_op_valid_in_enclave(e_proof_op);
+            if (e_privileged) {
+                assume tap_proof_op_valid_in_privileged(e_proof_op);
 
+            } else {
+                assume tap_proof_op_valid_in_enclave(e_proof_op);
+
+            }
+
+            // Be opening with the SYNC!
             // trace_1
             call RestoreContext_1();
             call current_mode_1, load_addr_1, l_way, store_addr_1, store_data_1, s_way := 
@@ -422,8 +458,8 @@ procedure ProveConfidentialityMem(
             call current_mode_2, load_addr_2, l_way, store_addr_2, store_data_2, s_way := 
                             EnclaveStep(current_mode, eid, e_proof_op);
             call SaveContext_2();
-            // This assumption should be adjusted.
-            // Ganxiang Yang @ Apr 16, 2023.
+
+
             assume (!e_excl_vaddr_1[load_addr_1] || !e_excl_vaddr_2[load_addr_2]) ==>
                    ((load_addr_1 == load_addr_2) && 
                     (cpu_addr_map_1[load_addr_1] == cpu_addr_map_2[load_addr_2]));

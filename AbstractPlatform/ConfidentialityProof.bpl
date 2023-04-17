@@ -169,13 +169,14 @@ procedure {:inline 1} ObserverStep(
     /* pt vaddr          */ pt_vaddr          : vaddr_t,
     /* pt valid          */ pt_valid          : addr_perm_t,
     /* pt paddr          */ pt_paddr          : wap_addr_t,
-    /* VA->PA valid      */ r_addr_valid      : addr_valid_t,
-    /* VA->PA map        */ r_addr_map        : addr_map_t,
-    /* VA->excl map      */ r_excl_vaddr      : excl_vaddr_t,
-    /* Private Mem Map   */ r_excl_map        : excl_map_t,
+    // /* VA->PA valid      */ r_addr_valid      : addr_valid_t,
+    // /* VA->PA map        */ r_addr_map        : addr_map_t,
+    // /* VA->excl map      */ r_excl_vaddr      : excl_vaddr_t,
+    // /* Private Mem Map   */ r_excl_map        : excl_map_t,
     /* Container Valid   */ r_container_valid : container_valid_t,
     /* Container Data    */ r_container_data  : container_data_t,
-    /* Entrypoint        */ r_entrypoint      : vaddr_t,
+    // /* Entrypoint        */ r_entrypoint      : vaddr_t,
+    // /* Privileged        */ r_privileged      : bool,
     /* blocked mem       */ r_bmap            : excl_map_t,
     /* ways to change.   */ l_way, s_way      : cache_way_index_t)
 
@@ -212,7 +213,17 @@ procedure {:inline 1} ObserverStep(
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
+    /* enclave launch structure */
+    var r_addr_valid    : addr_valid_t;
+    var r_addr_map      : addr_map_t;
+    var r_excl_vaddr    : excl_vaddr_t;
+    var r_excl_map      : excl_map_t;
+    var r_entrypoint    : vaddr_t;
+    var r_privileged    : bool;
+
     // "default" for the next mode.
     next_mode := mode;
     // "default" for whether we kill enclave eid.
@@ -240,18 +251,23 @@ procedure {:inline 1} ObserverStep(
                                                       pt_eid, pt_vaddr, pt_valid, pt_paddr);
         }
     } else if (op == tap_proof_op_launch) {
+        assume !tap_enclave_metadata_valid[r_eid];
+        call InitOSMem(r_container_valid, r_container_data);
+        call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
         // can't put current pc inside the enclave.
         assume !r_excl_map[cpu_addr_map[cpu_pc]];
-        call InitOSMem(r_container_valid, r_container_data);
+
         call status := launch(r_eid, r_addr_valid, r_addr_map, 
-                              r_excl_vaddr, r_excl_map, r_entrypoint);
+                              r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
         assert (r_eid == eid) ==> (status != enclave_op_success);
+
     } else if (op == tap_proof_op_destroy) {
         call status := destroy(r_eid);
         // the enclave has been destroyed.
         if (r_eid == eid && status == enclave_op_success) {
             enclave_dead := true;
         }
+
     } else if (op == tap_proof_op_enter) {
         call status := enter(r_eid);
         assert (cpu_enclave_id == tap_null_enc_id && r_eid == eid) ==> 
@@ -260,6 +276,8 @@ procedure {:inline 1} ObserverStep(
         if (r_eid == eid && status == enclave_op_success) {
             next_mode := mode_enclave;
         }
+        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
+
     } else if (op == tap_proof_op_exit) {
         call status := exit();
     } else if (op == tap_proof_op_resume) {
@@ -287,7 +305,8 @@ procedure {:inline 1} EnclaveStep(
     returns (
         /* mode     */  next_mode : mode_t, 
         /* read     */  load_addr : vaddr_t, l_way : cache_way_index_t,
-        /* store    */  store_addr : vaddr_t, store_data : word_t, s_way : cache_way_index_t
+        /* store    */  store_addr : vaddr_t, store_data : word_t, s_way : cache_way_index_t,
+        /* status   */  status : enclave_op_result_t
     )
     
     modifies cpu_mem;
@@ -306,58 +325,175 @@ procedure {:inline 1} EnclaveStep(
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
     modifies tap_enclave_metadata_cache_conflict;
+    modifies tap_enclave_metadata_privileged;
+    modifies tap_enclave_metadata_owner_map;
 {
     var vaddr  : vaddr_t;
     var word   : word_t;
     var excp   : exception_t;
-    var status : enclave_op_result_t;
+    // var status : enclave_op_result_t;
     var hit    : bool;
     var owner  : tap_enclave_id_t;
     var way    : cache_way_index_t;
+    var i_eid   : tap_enclave_id_t;
+    var is_invalid_id : bool;
+    /* enclave launch structure */
+    var r_addr_valid      : addr_valid_t;
+    var r_addr_map        : addr_map_t;
+    var r_excl_vaddr      : excl_vaddr_t;
+    var r_excl_map        : excl_map_t;
+    var r_entrypoint      : vaddr_t;
+    var r_privileged      : bool;
+    
+    var regs   : regs_t;
+    var p_regs : regs_t;
+    var p_container_valid : container_valid_t;
+    var p_container_data  : container_data_t;
 
-    if (op == tap_proof_op_compute) {
-        // do whatever.
-        havoc cpu_regs;
-        havoc cpu_pc;
+    // reserve previous regs
+    regs  := cpu_regs;
 
-        // fetch from whereever inside the enclave.
-        assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
-        assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
-        assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
-        havoc way; assume valid_cache_way_index(way);
-        call word, excp, hit := fetch_va(cpu_pc, way);
-        assert (excp == excp_none);
+    if (tap_enclave_metadata_privileged[cpu_enclave_id]) {
+        if (op == tap_proof_op_compute) {
+            // Updated ver. Apr 17, 2023.
+            // do whatever.
+            havoc cpu_regs;
+            havoc cpu_pc;
+            havoc i_eid;
+            // fetch from whereever inside the enclave.
+            assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
+            assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
+            assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
+            havoc way; assume valid_cache_way_index(way);
+            call word, excp, hit := fetch_va(cpu_pc, way);
+            assert (excp == excp_none);
 
-        // load from whereever inside the enclave.
-        havoc load_addr;
-        assume tap_addr_perm_r(cpu_addr_valid[load_addr]);
-        owner := cpu_owner_map[cpu_addr_map[load_addr]];
-        assume owner == eid || owner == tap_null_enc_id;
-        havoc l_way; assume valid_cache_way_index(l_way);
-        call word, excp, hit := load_va(load_addr, l_way);
-        assert (excp == excp_none);
+            is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
+                                (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
+                                (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
+            if (is_invalid_id) {
+                i_eid := cpu_enclave_id;
+            } 
+            // load from whereever inside the enclave.
+            havoc load_addr;
+            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]);
+            havoc l_way; assume valid_cache_way_index(l_way);
+            call word, excp, hit := load_va(i_eid, load_addr, l_way);
+            assert (excp == excp_none);
 
-        // store whatever inside the enclave.
-        havoc store_addr, store_data;
-        assume tap_addr_perm_w(cpu_addr_valid[store_addr]);
-        owner := cpu_owner_map[cpu_addr_map[store_addr]];
-        assume owner == eid || owner == tap_null_enc_id;
-        havoc s_way; assume valid_cache_way_index(s_way);
-        call excp, hit := store_va(store_addr, store_data, s_way);
-        assert excp == excp_none;
-        store_data := store_data;
+            // store whatever inside the enclave.
+            havoc store_addr, store_data;
+            assume tap_addr_perm_w(cpu_addr_valid[store_addr]);
+            owner := cpu_owner_map[cpu_addr_map[store_addr]];
+            assume owner == eid || owner == tap_null_enc_id;
+            havoc s_way; assume valid_cache_way_index(s_way);
+            call excp, hit := store_va(store_addr, store_data, s_way);
+            assert excp == excp_none;
+            store_data := store_data;
 
-        // stay in the same mode.
-        next_mode := mode;
-    } else if (op == tap_proof_op_exit) {
-        call status := exit();
-        assert status == enclave_op_success;
-        // switch back to the observer. 
-        next_mode := mode_untrusted;
-    } else if (op == tap_proof_op_pause) {
-        call status := exit();
-        assert status == enclave_op_success;
-        // switch back to the observer. 
-        next_mode := mode_untrusted;
+            // stay in the same mode.
+            next_mode := mode;
+            status := enclave_op_success;
+
+        } else if (op == tap_proof_op_launch) {
+            assume !tap_enclave_metadata_valid[r_eid];
+            call InitOSMem(p_container_valid, p_container_data);
+            // Add a buildup stage for launch.
+            call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
+            // mysterious assumption
+            assume !r_excl_map[cpu_addr_map[cpu_pc]];
+            call status := launch(r_eid, r_addr_valid, r_addr_map,
+                                  r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
+            next_mode := mode_enclave;
+
+        } else if (op == tap_proof_op_destroy) {
+            call status := destroy(r_eid);
+            next_mode := mode_enclave;
+
+        } else if (op == tap_proof_op_enter) {
+            call status := enter(r_eid);
+            cpu_regs := p_regs;
+            
+            if (status == enclave_op_success) {
+                next_mode := mode_untrusted;
+            } else {
+                cpu_regs  := regs;
+                next_mode := mode_enclave;
+            }
+            
+        } else if (op == tap_proof_op_exit) {
+            call status := exit();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+
+        } else if (op == tap_proof_op_resume) {
+            call status := resume(r_eid);
+            if (status == enclave_op_success) {
+                next_mode := mode_untrusted;
+            } else {
+                next_mode := mode_enclave;
+            }
+            
+        } else if (op == tap_proof_op_pause) {
+            call status := pause();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+
+        } 
+    } else {
+        if (op == tap_proof_op_compute) {
+            // Updated ver. Apr 17, 2023.
+            // do whatever.
+            havoc cpu_regs;
+            havoc cpu_pc;
+            havoc i_eid;
+            // fetch from whereever inside the enclave.
+            assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
+            assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
+            assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
+            havoc way; assume valid_cache_way_index(way);
+            call word, excp, hit := fetch_va(cpu_pc, way);
+            assert (excp == excp_none);
+
+            is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
+                                (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
+                                (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
+            if (is_invalid_id) {
+                i_eid := cpu_enclave_id;
+            } 
+            // load from whereever inside the enclave.
+            havoc load_addr;
+            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]);
+            havoc l_way; assume valid_cache_way_index(l_way);
+            call word, excp, hit := load_va(i_eid, load_addr, l_way);
+            assert (excp == excp_none);
+
+            // store whatever inside the enclave.
+            havoc store_addr, store_data;
+            assume tap_addr_perm_w(cpu_addr_valid[store_addr]);
+            owner := cpu_owner_map[cpu_addr_map[store_addr]];
+            assume owner == eid || owner == tap_null_enc_id;
+            havoc s_way; assume valid_cache_way_index(s_way);
+            call excp, hit := store_va(store_addr, store_data, s_way);
+            assert excp == excp_none;
+            store_data := store_data;
+
+            // stay in the same mode.
+            next_mode := mode;
+            status := enclave_op_success;
+
+        } else if (op == tap_proof_op_exit) {
+            call status := exit();
+            assert status == enclave_op_success;
+            // switch back to the observer. 
+            next_mode := mode_untrusted;
+
+        } else if (op == tap_proof_op_pause) {
+            call status := pause();
+            assert status == enclave_op_success;
+            next_mode := mode_untrusted;
+
+        }
     }
+
 }
