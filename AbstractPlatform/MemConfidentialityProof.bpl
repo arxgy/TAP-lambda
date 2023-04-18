@@ -69,7 +69,6 @@ procedure ProveConfidentialityMem(
     var e_container_data_1, e_container_data_2       : container_data_t;
     var e_entrypoint_1, e_entrypoint_2               : vaddr_t;
     var e_privileged                                 : bool;
-    var e_privileged_1, e_privileged_2               : bool;
     var current_mode, current_mode_1, current_mode_2 : mode_t;
     var enclave_dead, enclave_dead_1, enclave_dead_2 : bool;
     var observation_1, observation_2                 : word_t;
@@ -118,9 +117,6 @@ procedure ProveConfidentialityMem(
     // create two copies of state.
     call SaveContext_1();
     call SaveContext_2();
-
-    // We don't make non-distinguishable claim on PE and NE.
-    // by Ganxiang Yang @ Apr 17, 2023.
 
     // launch should not leave the PC in an untenable sitation.
     assume !e_excl_map[cpu_addr_map[cpu_pc]];
@@ -305,7 +301,6 @@ procedure ProveConfidentialityMem(
         invariant (tap_enclave_metadata_regs_1[tap_null_enc_id] == tap_enclave_metadata_regs_2[tap_null_enc_id]);
         invariant (tap_enclave_metadata_pc_1[tap_null_enc_id] == tap_enclave_metadata_pc_2[tap_null_enc_id]);
         
-        // buugy claims
         // Stronger: applied for OS and all other NE
         invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==> 
             (tap_enclave_metadata_addr_valid_1[e] == tap_enclave_metadata_addr_valid_2[e]));
@@ -325,10 +320,6 @@ procedure ProveConfidentialityMem(
         // valid is the same except for eid.
         invariant (forall e : tap_enclave_id_t :: (e != eid) ==> 
             (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
-
-        // invariant (e_privileged_1 == e_privileged_2) ==> 
-        //         (forall e : tap_enclave_id_t :: (e != eid) ==>
-        //             (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
 
         
         // addr valid is the same except for eid.
@@ -361,7 +352,6 @@ procedure ProveConfidentialityMem(
                         (tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]));
                 
         // invariants about state sync between 2 traces.
-        // TODO: these properties may need extension/modification for multiple PE environment.
         // OS/NE sync.
         invariant (current_mode == mode_untrusted) ==> 
                     (cpu_enclave_id_1 == tap_null_enc_id ==> 

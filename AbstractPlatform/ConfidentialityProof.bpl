@@ -456,7 +456,6 @@ procedure {:inline 1} EnclaveStep(
             havoc l_way; assume valid_cache_way_index(l_way);
             call word, excp, hit := load_va(i_eid, load_addr, l_way);
             assert (excp == excp_none);
-
             // store whatever inside the enclave.
             havoc store_addr, store_data;
             assume tap_addr_perm_w(cpu_addr_valid[store_addr]);

@@ -187,7 +187,7 @@ function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 // compute & launch
 function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 {
-    // // false
+    // false
     o == tap_proof_op_enter    ||
     o == tap_proof_op_compute  ||
     o == tap_proof_op_destroy  || 
