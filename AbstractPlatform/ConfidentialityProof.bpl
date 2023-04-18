@@ -18,12 +18,10 @@ procedure {:inline 1} MemObserverComputation(
     modifies cpu_regs;
     modifies cpu_pc;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
     modifies cpu_addr_valid;
     modifies cpu_addr_map;
     modifies tap_enclave_metadata_addr_valid;
     modifies tap_enclave_metadata_addr_map;
-    modifies untrusted_addr_map;
 {
     var excp         : exception_t;
     var l_word       : word_t;
@@ -42,7 +40,7 @@ procedure {:inline 1} MemObserverComputation(
     // store
     call excp, hit_1 := store_va(s_vaddr, s_data, s_way);
     // load
-    call l_word, excp, hit_2 := load_va(l_vaddr, l_way);
+    call l_word, excp, hit_2 := load_va(cpu_enclave_id, l_vaddr, l_way);
     r_word := cpu_regs[r_read];
     observation := uf_observation_mem(cpu_pc, l_word, r_word);
 
@@ -73,10 +71,8 @@ procedure {:inline 1} CacheObserverComputation(
     modifies cache_valid_map, cache_tag_map;
     modifies tap_enclave_metadata_addr_valid;
     modifies tap_enclave_metadata_addr_map;
-    modifies untrusted_addr_valid;
     modifies cpu_addr_valid;
     modifies cpu_addr_map;
-    modifies untrusted_addr_map;
 {
     var excp         : exception_t;
     var l_word       : word_t;
@@ -90,7 +86,7 @@ procedure {:inline 1} CacheObserverComputation(
     cpu_regs[r_write] := r_data;
     call excp, hit_1 := store_va(s_vaddr, s_data, s_way);
     call valid, paddr := get_enclave_addr_map(r_pt_eid, r_pt_va);
-    call l_word, excp, hit_2 := load_va(l_vaddr, l_way);
+    call l_word, excp, hit_2 := load_va(cpu_enclave_id, l_vaddr, l_way);
     r_word := cpu_regs[r_read];
     observation := uf_observation_cache(hit_1, hit_2);
 
@@ -116,12 +112,10 @@ procedure {:inline 1} PTObserverComputation(
     modifies cpu_regs;
     modifies cpu_pc;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
     modifies tap_enclave_metadata_addr_valid;
     modifies tap_enclave_metadata_addr_map;
     modifies cpu_addr_valid;
     modifies cpu_addr_map;
-    modifies untrusted_addr_map;
 {
     var excp         : exception_t;
     var l_word       : word_t;
@@ -155,6 +149,12 @@ procedure {:inline 1} ObserverStep(
     /* Current mode      */ mode              : mode_t,
     /* Secret Enclave    */ eid               : tap_enclave_id_t,
     /* Adversary Enclave */ r_eid             : tap_enclave_id_t,
+                            r_addr_valid      : addr_valid_t,
+                            r_addr_map        : addr_map_t,
+                            r_excl_vaddr      : excl_vaddr_t,
+                            r_excl_map        : excl_map_t,
+                            r_entrypoint      : vaddr_t,
+                            r_privileged      : bool,
     /* Operation.        */ op                : tap_proof_op_t,
     /* next PC value.    */ r_pc              : vaddr_t,
     /* reg to read.      */ r_read            : regindex_t,
@@ -169,14 +169,8 @@ procedure {:inline 1} ObserverStep(
     /* pt vaddr          */ pt_vaddr          : vaddr_t,
     /* pt valid          */ pt_valid          : addr_perm_t,
     /* pt paddr          */ pt_paddr          : wap_addr_t,
-    // /* VA->PA valid      */ r_addr_valid      : addr_valid_t,
-    // /* VA->PA map        */ r_addr_map        : addr_map_t,
-    // /* VA->excl map      */ r_excl_vaddr      : excl_vaddr_t,
-    // /* Private Mem Map   */ r_excl_map        : excl_map_t,
     /* Container Valid   */ r_container_valid : container_valid_t,
     /* Container Data    */ r_container_data  : container_data_t,
-    // /* Entrypoint        */ r_entrypoint      : vaddr_t,
-    // /* Privileged        */ r_privileged      : bool,
     /* blocked mem       */ r_bmap            : excl_map_t,
     /* ways to change.   */ l_way, s_way      : cache_way_index_t)
 
@@ -200,10 +194,6 @@ procedure {:inline 1} ObserverStep(
     modifies cpu_addr_map;
     modifies cpu_owner_map;
     modifies cache_valid_map, cache_tag_map;
-    modifies untrusted_addr_valid;
-    modifies untrusted_addr_map;
-    modifies untrusted_regs;
-    modifies untrusted_pc;
     modifies tap_enclave_metadata_valid;
     modifies tap_enclave_metadata_addr_map;
     modifies tap_enclave_metadata_addr_valid;
@@ -216,14 +206,6 @@ procedure {:inline 1} ObserverStep(
     modifies tap_enclave_metadata_privileged;
     modifies tap_enclave_metadata_owner_map;
 {
-    /* enclave launch structure */
-    var r_addr_valid    : addr_valid_t;
-    var r_addr_map      : addr_map_t;
-    var r_excl_vaddr    : excl_vaddr_t;
-    var r_excl_map      : excl_map_t;
-    var r_entrypoint    : vaddr_t;
-    var r_privileged    : bool;
-
     // "default" for the next mode.
     next_mode := mode;
     // "default" for whether we kill enclave eid.
@@ -253,10 +235,7 @@ procedure {:inline 1} ObserverStep(
     } else if (op == tap_proof_op_launch) {
         assume !tap_enclave_metadata_valid[r_eid];
         call InitOSMem(r_container_valid, r_container_data);
-        call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
         // can't put current pc inside the enclave.
-        assume !r_excl_map[cpu_addr_map[cpu_pc]];
-
         call status := launch(r_eid, r_addr_valid, r_addr_map, 
                               r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
         assert (r_eid == eid) ==> (status != enclave_op_success);
@@ -276,10 +255,14 @@ procedure {:inline 1} ObserverStep(
         if (r_eid == eid && status == enclave_op_success) {
             next_mode := mode_enclave;
         }
-        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
 
     } else if (op == tap_proof_op_exit) {
         call status := exit();
+        if (status == enclave_op_success && cpu_enclave_id == eid) {
+            next_mode := mode_enclave;
+        }
+        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
+
     } else if (op == tap_proof_op_resume) {
         call status := resume(r_eid);
         // switch to enclave mode.
@@ -288,18 +271,36 @@ procedure {:inline 1} ObserverStep(
         if (r_eid == eid && status == enclave_op_success) {
             next_mode := mode_enclave;
         }
+
     } else if (op == tap_proof_op_pause) {
         call status := pause();
+        if (status == enclave_op_success && cpu_enclave_id == eid) {
+            next_mode := mode_enclave;
+        }
+        assert (cpu_enclave_id == tap_null_enc_id) || tap_enclave_metadata_privileged[cpu_enclave_id];
+
     } else if (op == tap_proof_op_release) {
         call status := release_blocked_memory(r_bmap);
+
     } else if (op == tap_proof_op_block) {
         call status := block_memory_region(r_bmap);
+
     }
 }
 
 procedure {:inline 1} EnclaveStep(
     /* Current mode */      mode              : mode_t,
     /* Secret Enclave */    eid               : tap_enclave_id_t,
+    /* primtive target */   r_eid             : tap_enclave_id_t,
+    /* launch inputs   */   r_addr_valid      : addr_valid_t,
+                            r_addr_map        : addr_map_t,
+                            r_excl_vaddr      : excl_vaddr_t,
+                            r_excl_map        : excl_map_t,
+                            r_entrypoint      : vaddr_t,
+                            r_privileged      : bool,
+                            r_container_valid : container_valid_t,
+                            r_container_data  : container_data_t,
+    /* enter inputs   */    r_regs            : regs_t,
     /* Operation. */        op                : tap_proof_op_t)
 
     returns (
@@ -321,6 +322,7 @@ procedure {:inline 1} EnclaveStep(
     modifies tap_enclave_metadata_addr_map;
     modifies tap_enclave_metadata_addr_valid;
     modifies tap_enclave_metadata_addr_excl;
+    modifies tap_enclave_metadata_entrypoint;
     modifies tap_enclave_metadata_pc;
     modifies tap_enclave_metadata_regs;
     modifies tap_enclave_metadata_paused;
@@ -337,18 +339,9 @@ procedure {:inline 1} EnclaveStep(
     var way    : cache_way_index_t;
     var i_eid   : tap_enclave_id_t;
     var is_invalid_id : bool;
-    /* enclave launch structure */
-    var r_addr_valid      : addr_valid_t;
-    var r_addr_map        : addr_map_t;
-    var r_excl_vaddr      : excl_vaddr_t;
-    var r_excl_map        : excl_map_t;
-    var r_entrypoint      : vaddr_t;
-    var r_privileged      : bool;
-    
     var regs   : regs_t;
-    var p_regs : regs_t;
-    var p_container_valid : container_valid_t;
-    var p_container_data  : container_data_t;
+
+    
 
     // reserve previous regs
     regs  := cpu_regs;
@@ -371,16 +364,16 @@ procedure {:inline 1} EnclaveStep(
             is_invalid_id :=    ((!tap_enclave_metadata_valid[i_eid]) || 
                                 (tap_enclave_metadata_privileged[cpu_enclave_id]  && i_eid != cpu_enclave_id && tap_enclave_metadata_owner_map[i_eid] != cpu_enclave_id) || 
                                 (!tap_enclave_metadata_privileged[cpu_enclave_id] && i_eid != cpu_enclave_id));
-            if (is_invalid_id) {
-                i_eid := cpu_enclave_id;
-            } 
-            // load from whereever inside the enclave.
-            havoc load_addr;
-            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]);
-            havoc l_way; assume valid_cache_way_index(l_way);
-            call word, excp, hit := load_va(i_eid, load_addr, l_way);
-            assert (excp == excp_none);
 
+            havoc load_addr;
+            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]) && tap_enclave_metadata_addr_excl[i_eid][load_addr];
+            havoc l_way; assume valid_cache_way_index(l_way);
+            if (!is_invalid_id) {
+                // load from whereever inside the enclave / Child Enclave
+                call word, excp, hit := load_va(i_eid, load_addr, l_way);
+                assert (excp == excp_none);
+
+            } 
             // store whatever inside the enclave.
             havoc store_addr, store_data;
             assume tap_addr_perm_w(cpu_addr_valid[store_addr]);
@@ -397,11 +390,7 @@ procedure {:inline 1} EnclaveStep(
 
         } else if (op == tap_proof_op_launch) {
             assume !tap_enclave_metadata_valid[r_eid];
-            call InitOSMem(p_container_valid, p_container_data);
-            // Add a buildup stage for launch.
-            call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
-            // mysterious assumption
-            assume !r_excl_map[cpu_addr_map[cpu_pc]];
+            call InitOSMem(r_container_valid, r_container_data);
             call status := launch(r_eid, r_addr_valid, r_addr_map,
                                   r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
             next_mode := mode_enclave;
@@ -412,7 +401,7 @@ procedure {:inline 1} EnclaveStep(
 
         } else if (op == tap_proof_op_enter) {
             call status := enter(r_eid);
-            cpu_regs := p_regs;
+            cpu_regs := r_regs;
             
             if (status == enclave_op_success) {
                 next_mode := mode_untrusted;
@@ -463,7 +452,7 @@ procedure {:inline 1} EnclaveStep(
             } 
             // load from whereever inside the enclave.
             havoc load_addr;
-            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]);
+            assume tap_addr_perm_r(tap_enclave_metadata_addr_valid[i_eid][load_addr]) && tap_enclave_metadata_addr_excl[i_eid][load_addr];            
             havoc l_way; assume valid_cache_way_index(l_way);
             call word, excp, hit := load_va(i_eid, load_addr, l_way);
             assert (excp == excp_none);

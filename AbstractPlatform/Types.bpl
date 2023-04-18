@@ -165,37 +165,35 @@ axiom (forall o : tap_proof_op_t ::
 // failed: release, block
 function tap_proof_op_valid(o : tap_proof_op_t) : bool 
 {
-    // false
-    // exclusive_map[eid][virtual address] == bool/ true /false 
-    // ownermap[physical address] => enclave - id
     o == tap_proof_op_compute ||
-    o == tap_proof_op_destroy || 
+    o == tap_proof_op_destroy ||
     o == tap_proof_op_enter   ||
     o == tap_proof_op_exit    ||
     o == tap_proof_op_launch  ||
-    o == tap_proof_op_resume  || 
-    o == tap_proof_op_pause   ||
-    o == tap_proof_op_release ||
+    o == tap_proof_op_resume  ||  
+    o == tap_proof_op_pause   || 
+    o == tap_proof_op_release || 
     o == tap_proof_op_block
 }
 
 function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 {
     // false 
-    o == tap_proof_op_pause       ||
-    o == tap_proof_op_compute     ||
+    o == tap_proof_op_pause     ||   
+    o == tap_proof_op_compute   ||  
     o == tap_proof_op_exit      
 }
 
+// compute & launch
 function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 {
-    // false
-    o == tap_proof_op_enter   ||
-    o == tap_proof_op_compute   ||
-    o == tap_proof_op_destroy || 
+    // // false
+    o == tap_proof_op_enter    ||
+    o == tap_proof_op_compute  ||
+    o == tap_proof_op_destroy  || 
     o == tap_proof_op_exit     ||
     o == tap_proof_op_launch   ||
-    o == tap_proof_op_resume  ||   
+    o == tap_proof_op_resume   ||   
     o == tap_proof_op_pause    
 }
 

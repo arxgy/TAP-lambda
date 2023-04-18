@@ -352,6 +352,29 @@ procedure LaunchHavoc(eid : tap_enclave_id_t)
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
     ensures !privilege;
 
+procedure LaunchInputHavoc(eid : tap_enclave_id_t)
+    returns (addr_valid : addr_valid_t, 
+             addr_map : addr_map_t, 
+             excl_vaddr : excl_vaddr_t, 
+             excl_map : excl_map_t, 
+             entrypoint : vaddr_t, 
+             privilege : bool);
+    ensures tap_addr_perm_x(addr_valid[entrypoint]);
+    ensures excl_map[addr_map[entrypoint]];
+    ensures excl_vaddr[entrypoint];
+    ensures (forall pa : wap_addr_t :: 
+        (excl_map[pa] ==> cpu_owner_map_1[pa] == tap_null_enc_id));
+    ensures (forall pa : wap_addr_t :: 
+        (excl_map[pa] ==> cpu_owner_map_2[pa] == tap_null_enc_id));
+    ensures !excl_map[cpu_addr_map_1[cpu_pc_1]];
+    ensures !excl_map[cpu_addr_map_2[cpu_pc_2]];
+    ensures (forall v : vaddr_t :: 
+        (excl_vaddr[v] ==> tap_addr_perm_v(addr_valid[v])));
+    ensures (forall v : vaddr_t :: 
+        (excl_vaddr[v] ==> excl_map[addr_map[v]]));
+    ensures (forall v1, v2 : vaddr_t :: 
+        !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
+    ensures !privilege;
 
 procedure LoadHavoc(eid : tap_enclave_id_t)
     returns (i_eid : tap_enclave_id_t);

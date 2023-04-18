@@ -71,7 +71,7 @@ procedure ProveConfidentialityMem(
     var e_privileged                                 : bool;
     var e_privileged_1, e_privileged_2               : bool;
     var current_mode, current_mode_1, current_mode_2 : mode_t;
-    // var enclave_dead, enclave_dead_1, enclave_dead_2 : bool;
+    var enclave_dead, enclave_dead_1, enclave_dead_2 : bool;
     var observation_1, observation_2                 : word_t;
     var e_proof_op, r_proof_op                       : tap_proof_op_t;
     var word_1, word_2                               : word_t;
@@ -87,8 +87,10 @@ procedure ProveConfidentialityMem(
     var r_container_valid                            : container_valid_t;
     var r_container_data                             : container_data_t;
     var r_entrypoint                                 : vaddr_t;
+    var r_privileged                                 : bool;
     var r_l_way, r_s_way                             : cache_way_index_t;
     var r_pc                                         : vaddr_t;
+    var r_regs                                       : regs_t;
     var r_read                                       : regindex_t;
     var r_write                                      : regindex_t;
     var r_data                                       : word_t;
@@ -104,7 +106,7 @@ procedure ProveConfidentialityMem(
     var l_way, s_way                                 : cache_way_index_t;
 
     // initial state.
-    call current_mode := InitialHavoc();
+    call current_mode := InitialHavoc(eid);
     assert tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
     assert cpu_owner_map[cpu_addr_map[cpu_pc]] == cpu_enclave_id;
     assert cpu_enclave_id == tap_null_enc_id;
@@ -229,10 +231,6 @@ procedure ProveConfidentialityMem(
         //-------------------------------------------------------------------//
         // CPU mode and CPU enclave ID must be consistent.
         //-------------------------------------------------------------------//
-        invariant (forall e : tap_enclave_id_t :: 
-                    !valid_enclave_id(e) ==> !tap_enclave_metadata_valid_1[tap_null_enc_id]);
-        invariant (forall e : tap_enclave_id_t ::
-                    !valid_enclave_id(e) ==> !tap_enclave_metadata_valid_2[tap_null_enc_id]);
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_1 != eid);
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 != eid);
         invariant (current_mode == mode_enclave) ==> (cpu_enclave_id_1 == eid);
@@ -270,10 +268,10 @@ procedure ProveConfidentialityMem(
         // Now deal with the enclaves.
         //-------------------------------------------------------------------//
         invariant (forall v : vaddr_t ::
-                    (current_mode_1 == mode_enclave && e_excl_vaddr_1[v]) ==> 
+                    (current_mode == mode_enclave && e_excl_vaddr_1[v]) ==> 
                         (cpu_addr_map_1[v] == e_addr_map_1[v]));
         invariant (forall v : vaddr_t ::
-                    (current_mode_2 == mode_enclave && e_excl_vaddr_2[v]) ==> 
+                    (current_mode == mode_enclave && e_excl_vaddr_2[v]) ==> 
                         (cpu_addr_map_2[v] == e_addr_map_2[v]));
         //-------------------------------------------------------------------//
         // CPU state is the same                                             //
@@ -293,6 +291,10 @@ procedure ProveConfidentialityMem(
         // memory is the same except for the enclave memory.
         invariant (forall pa : wap_addr_t :: !e_excl_map[pa] ==> (cpu_mem_1[pa] == cpu_mem_2[pa]));
 
+        invariant (current_mode == mode_untrusted) ==> (tap_enclave_metadata_valid_1[cpu_enclave_id_1]);
+        invariant (current_mode == mode_untrusted) ==> (tap_enclave_metadata_valid_2[cpu_enclave_id_2]);
+
+        invariant (tap_enclave_metadata_valid_1[eid] && tap_enclave_metadata_valid_2[eid]);
         //-------------------------------------------------------------------//
         // OS state is the same                                              //
         //-------------------------------------------------------------------//
@@ -303,7 +305,8 @@ procedure ProveConfidentialityMem(
         invariant (tap_enclave_metadata_regs_1[tap_null_enc_id] == tap_enclave_metadata_regs_2[tap_null_enc_id]);
         invariant (tap_enclave_metadata_pc_1[tap_null_enc_id] == tap_enclave_metadata_pc_2[tap_null_enc_id]);
         
-        // Stronger: applied for OS and all its children
+        // buugy claims
+        // Stronger: applied for OS and all other NE
         invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==> 
             (tap_enclave_metadata_addr_valid_1[e] == tap_enclave_metadata_addr_valid_2[e]));
         invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid[e] && e != eid) ==>
@@ -320,21 +323,13 @@ procedure ProveConfidentialityMem(
         //-------------------------------------------------------------------//
         
         // valid is the same except for eid.
-        invariant (e_privileged_1 == e_privileged_2) ==> 
-                (forall e : tap_enclave_id_t :: (e != eid) ==>
-                    (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
+        invariant (forall e : tap_enclave_id_t :: (e != eid) ==> 
+            (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
 
-        invariant (e_privileged_1 != e_privileged_2 && e_privileged_1) ==> 
-                (forall e : tap_enclave_id_t :: (e != eid && tap_enclave_metadata_owner_map_1[e] != eid) ==> 
-                    (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
-
-        invariant (e_privileged_1 != e_privileged_2 && e_privileged_2) ==> 
-                (forall e : tap_enclave_id_t :: (e != eid && tap_enclave_metadata_owner_map_2[e] != eid) ==> 
-                    (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
-        // invariant (forall e : tap_enclave_id_t :: (e != eid) ==>
+        // invariant (e_privileged_1 == e_privileged_2) ==> 
+        //         (forall e : tap_enclave_id_t :: (e != eid) ==>
         //             (tap_enclave_metadata_valid_1[e] == tap_enclave_metadata_valid_2[e]));
 
-        // These same-check could also be adopted by chaos cases.
         
         // addr valid is the same except for eid.
         invariant (forall e : tap_enclave_id_t :: 
@@ -388,43 +383,46 @@ procedure ProveConfidentialityMem(
                         tap_enclave_metadata_paused_1[e] == tap_enclave_metadata_paused_2[e]);
 
     {
-        havoc r_proof_op, r_eid, r_pc, r_read, r_write, r_data, 
+        havoc r_proof_op, r_eid, r_pc, r_regs, r_read, r_write, r_data, 
                 l_vaddr, s_vaddr, s_data, r_pt_eid, r_pt_va, 
                 pt_eid, pt_vaddr, pt_valid, pt_paddr, r_addr_valid, 
                 r_addr_map, r_excl_vaddr, r_excl_map, r_bmap,
-                r_container_valid, r_container_data, r_entrypoint, r_l_way, r_s_way;
+                r_container_valid, r_container_data, r_entrypoint, r_privileged, r_l_way, r_s_way;
 
         if (current_mode == mode_untrusted) {
-            assume false;
+            assume tap_proof_op_valid(r_proof_op);
             assume valid_regindex(r_read);
             assume valid_regindex(r_write);
             assume valid_cache_way_index(r_l_way);
             assume valid_cache_way_index(r_s_way);
+
+            call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchInputHavoc(r_eid);
+
             // trace_1
             call RestoreContext_1();
             call observation_1, current_mode_1, enclave_dead_1, status_1 :=
-                                    ObserverStep(k_mem_observer_t, current_mode, eid, r_eid, r_proof_op, 
+                                    ObserverStep(k_mem_observer_t, current_mode, eid, r_eid, 
+                                                r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged, 
+                                                r_proof_op, 
                                                 r_pc, r_read, r_write, r_data, 
                                                 l_vaddr, s_vaddr, s_data,
                                                 r_pt_eid, r_pt_va,
                                                 pt_eid, pt_vaddr, pt_valid, pt_paddr,
-                                                r_addr_valid, r_addr_map, r_excl_vaddr,
-                                                r_excl_map, r_container_valid, r_container_data,
-                                                r_entrypoint, r_bmap,
+                                                r_container_valid, r_container_data, r_bmap,
                                                 r_l_way, r_s_way);
             call SaveContext_1();
 
             // trace_2
             call RestoreContext_2();
             call observation_2, current_mode_2, enclave_dead_2, status_2 :=
-                                    ObserverStep(k_mem_observer_t, current_mode, eid, r_eid, r_proof_op, 
+                                    ObserverStep(k_mem_observer_t, current_mode, eid, r_eid, 
+                                                r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged, 
+                                                r_proof_op, 
                                                 r_pc, r_read, r_write, r_data, 
                                                 l_vaddr, s_vaddr, s_data,
                                                 r_pt_eid, r_pt_va,
                                                 pt_eid, pt_vaddr, pt_valid, pt_paddr,
-                                                r_addr_valid, r_addr_map, r_excl_vaddr,
-                                                r_excl_map, r_container_valid, r_container_data,
-                                                r_entrypoint, r_bmap,
+                                                r_container_valid, r_container_data, r_bmap,
                                                 r_l_way, r_s_way);
             call SaveContext_2();
 
@@ -432,11 +430,8 @@ procedure ProveConfidentialityMem(
             assert status_1 == status_2;
             assert current_mode_1 == current_mode_2;
             // Considering deprecate enclave dead.
-            // assert enclave_dead_1 == enclave_dead_2;
-            // enclave_dead := enclave_dead_2;
             current_mode := current_mode_1;
         } else {
-            assume false;
             havoc e_proof_op;
             if (e_privileged) {
                 assume tap_proof_op_valid_in_privileged(e_proof_op);
@@ -446,17 +441,24 @@ procedure ProveConfidentialityMem(
 
             }
 
+            call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchInputHavoc(r_eid);
             // Be opening with the SYNC!
             // trace_1
             call RestoreContext_1();
-            call current_mode_1, load_addr_1, l_way, store_addr_1, store_data_1, s_way := 
-                            EnclaveStep(current_mode, eid, e_proof_op);
+            call current_mode_1, load_addr_1, l_way, store_addr_1, store_data_1, s_way, status_1 := 
+                            EnclaveStep(current_mode, eid, r_eid, 
+                                        r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged, 
+                                        r_container_valid, r_container_data,
+                                        r_regs, e_proof_op);
             call SaveContext_1();
 
             // trace_1
             call RestoreContext_2();
-            call current_mode_2, load_addr_2, l_way, store_addr_2, store_data_2, s_way := 
-                            EnclaveStep(current_mode, eid, e_proof_op);
+            call current_mode_2, load_addr_2, l_way, store_addr_2, store_data_2, s_way, status_2 := 
+                            EnclaveStep(current_mode, eid, r_eid, 
+                                        r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged,
+                                        r_container_valid, r_container_data,
+                                        r_regs, e_proof_op);
             call SaveContext_2();
 
 
