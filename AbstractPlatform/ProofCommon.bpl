@@ -346,7 +346,6 @@ procedure LaunchHavoc(eid : tap_enclave_id_t)
         (excl_vaddr[v] ==> excl_map[addr_map[v]]));
     ensures (forall v1, v2 : vaddr_t :: 
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
-    ensures !privilege;
 
 // ensure the enclave's input's validity
 procedure LaunchInputHavoc(eid : tap_enclave_id_t)
@@ -371,7 +370,6 @@ procedure LaunchInputHavoc(eid : tap_enclave_id_t)
         (excl_vaddr[v] ==> excl_map[addr_map[v]]));
     ensures (forall v1, v2 : vaddr_t :: 
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
-    ensures !privilege;
 
 procedure LoadHavoc(eid : tap_enclave_id_t)
     returns (i_eid : tap_enclave_id_t);

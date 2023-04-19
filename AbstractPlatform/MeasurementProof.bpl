@@ -300,6 +300,7 @@ procedure {:inline 1} MeasurementEnclaveOp(
             call InitOSMem(p_container_valid, p_container_data);
             // Apr 6, 2023. add a buildup stage for launch.
             call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
+            assume !r_privileged;
             call status := launch(r_eid, r_addr_valid, r_addr_map,
                                 r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
             current_mode := mode_enclave;

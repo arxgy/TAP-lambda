@@ -154,17 +154,17 @@ procedure ProveConfidentialityMem(
         //// General invariants /////
         invariant !tap_enclave_metadata_privileged_1[tap_null_enc_id];
         invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
+        invariant tap_enclave_metadata_privileged_1[eid] == e_privileged;
+        invariant tap_enclave_metadata_privileged_2[eid] == e_privileged;
 
-        //  privileged relationship: unique PE
-        invariant ( e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-                (tap_enclave_metadata_privileged_1[e] <==> e == eid));
-        invariant ( e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-                (tap_enclave_metadata_privileged_2[e] <==> e == eid));
-
-        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-                (!tap_enclave_metadata_privileged_1[e]));
-        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-                (!tap_enclave_metadata_privileged_2[e]));
+        //  Apr 19, 2023
+        //  privileged relationship: multiple PE
+        invariant (forall e : tap_enclave_id_t :: 
+                (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
+                        (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+        invariant (forall e : tap_enclave_id_t :: 
+                (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
+                        (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -363,10 +363,17 @@ procedure ProveConfidentialityMem(
         invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
             (cpu_enclave_id_1 == cpu_enclave_id_2);
         
-        // PE sync. the PE's structure must be same.
+        // OS/NE & PE sync: stronger.
         invariant (forall e : tap_enclave_id_t :: 
-            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
-                (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] == eid));
+            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_valid_2[e]) ==> 
+                tap_enclave_metadata_owner_map_1[e] == tap_enclave_metadata_owner_map_2[e]);
+        // In confidentiality, we keep the adversary be same.
+        invariant (forall e: tap_enclave_id_t ::
+            tap_enclave_metadata_privileged_1[e] <==> tap_enclave_metadata_privileged_2[e]);
+        // PE sync. the PE's structure must be same.
+        // invariant (forall e : tap_enclave_id_t :: 
+        //     (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
+        //         (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] == eid));
 
         invariant (forall e : tap_enclave_id_t :: 
                     (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) ==> 
