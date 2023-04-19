@@ -257,11 +257,12 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     
     // corner cases, precondition for launch
     ensures (!tap_enclave_metadata_privileged[tap_null_enc_id]);
+
+    ensures (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid[e] && tap_enclave_metadata_privileged[e]) ==> 
+                    (tap_enclave_metadata_owner_map[e] == tap_null_enc_id));
+
     ensures (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
-    // cut branches: all enclaves are NE
-    ensures (forall e : tap_enclave_id_t ::
-                tap_enclave_metadata_valid[e] ==> 
-                    !tap_enclave_metadata_privileged[e]);
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
@@ -317,12 +318,7 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
                 (cpu_addr_map[va] == tap_enclave_metadata_addr_map[cpu_enclave_id][va]));
     ensures (forall va : vaddr_t :: 
                 (tap_addr_perm_eq(cpu_addr_valid[va], tap_enclave_metadata_addr_valid[cpu_enclave_id][va])));
-    
-    //  Feb 16, 2023.
-    //  initial state: all are NE
-    ensures (forall e : tap_enclave_id_t :: 
-                tap_enclave_metadata_valid[e] ==> 
-                    !tap_enclave_metadata_privileged[e]);
+
     //  Apr 7, 2023.
     //  initial state: exclusive memory consistency
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
@@ -352,6 +348,7 @@ procedure LaunchHavoc(eid : tap_enclave_id_t)
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
     ensures !privilege;
 
+// ensure the enclave's input's validity
 procedure LaunchInputHavoc(eid : tap_enclave_id_t)
     returns (addr_valid : addr_valid_t, 
              addr_map : addr_map_t, 
@@ -389,6 +386,8 @@ procedure LoadHavoc(eid : tap_enclave_id_t)
 procedure AcquireMapping(eid : tap_enclave_id_t)
     returns (r_vaddr : vaddr_t, r_paddr : wap_addr_t, r_valid : addr_perm_t);
     ensures tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[eid]] ==>
+        tap_enclave_metadata_addr_excl[eid][r_vaddr] <==> cpu_owner_map[r_paddr] == eid;
+    ensures tap_enclave_metadata_privileged[eid] ==>
         tap_enclave_metadata_addr_excl[eid][r_vaddr] <==> cpu_owner_map[r_paddr] == eid;
 
 // Uninterpreted functions to model deterministic computation.

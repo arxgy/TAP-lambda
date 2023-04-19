@@ -180,7 +180,7 @@ function tap_proof_op_valid_in_enclave(o : tap_proof_op_t) : bool
 {
     // false 
     o == tap_proof_op_pause     ||   
-    o == tap_proof_op_compute   ||  
+    o == tap_proof_op_compute   ||
     o == tap_proof_op_exit      
 }
 

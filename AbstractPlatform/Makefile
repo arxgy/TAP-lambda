@@ -15,7 +15,7 @@ BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorL
 					/enhancedErrorMessages:0 \
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
-					/proc:measurement_proof_part1 \
+					/proc:ProveIntegrity \
 					/proverWarnings:1 \
 					#  /timeLimit:900 \
 					#  /break \

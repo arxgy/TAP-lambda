@@ -153,7 +153,8 @@ procedure {:inline 1} IntegrityAdversarialStep(
     // the "default" value which may be overwritten by destroy.
     enclave_dead := false;
 
-    assume !r_privileged;
+    // Allow OS to launch PE.
+    // assume !r_privileged;
 
     // init case:   OS (r_eid == null): r_privileged = 1/0
     //              PE (r_eid != null): r_privileged = 0.
@@ -495,7 +496,9 @@ procedure ProveIntegrity()
         invariant !tap_enclave_metadata_privileged_1[tap_null_enc_id];
         invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
         invariant tap_enclave_metadata_privileged_1[eid] == tap_enclave_metadata_privileged_2[eid];
-        
+        invariant tap_enclave_metadata_privileged_1[eid] == e_privileged;
+        invariant tap_enclave_metadata_privileged_2[eid] == e_privileged;
+
         //  Feb 15, 2023.
         //  privileged relationship:
         // invariant (forall e : tap_enclave_id_t :: 
@@ -507,14 +510,23 @@ procedure ProveIntegrity()
         
         //  Apr 8, 2023
         //  privileged relationship: unique PE
-        invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_1[e]) ==>
-            (tap_enclave_metadata_privileged_1[e] <==> e == eid));
-        invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_2[e]) ==>
-            (tap_enclave_metadata_privileged_2[e] <==> e == eid));
-        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_1[e]) ==> 
-            (!tap_enclave_metadata_privileged_1[e]));
-        invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_2[e]) ==> 
-            (!tap_enclave_metadata_privileged_2[e]));
+        //  Apr 19, 2023
+        //  privileged relationship: multiple PE
+        invariant (forall e : tap_enclave_id_t :: 
+                (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
+                        (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+        invariant (forall e : tap_enclave_id_t :: 
+                (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
+                        (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
+
+        // invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_1[e]) ==>
+        //     (tap_enclave_metadata_privileged_1[e] <==> e == eid));
+        // invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_2[e]) ==>
+        //     (tap_enclave_metadata_privileged_2[e] <==> e == eid));
+        // invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_1[e]) ==> 
+        //     (!tap_enclave_metadata_privileged_1[e]));
+        // invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_2[e]) ==> 
+        //     (!tap_enclave_metadata_privileged_2[e]));
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -601,6 +613,8 @@ procedure ProveIntegrity()
                      (tap_enclave_metadata_addr_excl_1[eid] == e_excl_vaddr);
         invariant (!enclave_dead) ==>
                      (tap_enclave_metadata_addr_excl_2[eid] == e_excl_vaddr);
+        
+        // This consistency should be supposed by platform.
         // extend the exclusive-memory consistency to PE and NE children.
         // 1.   constrain this consistency to PE-controlled enclave.
         invariant (forall e : tap_enclave_id_t, v : vaddr_t :: 
@@ -646,22 +660,33 @@ procedure ProveIntegrity()
                     (tap_enclave_metadata_regs_1[eid][ri] == tap_enclave_metadata_regs_2[eid][ri]));
         
         // invariants about the states of the CPUs.
-        // are we in attacker mode? or we enter PE's children enclave..
+        // are we in attacker mode? or we enter PE's children enclave.
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_1 != eid);
-        invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 != eid);
+        invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 == tap_null_enc_id || tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid);
 
         // invariants about state sync between 2 traces.
-        // TODO: these properties may need extension/modification for multiple PE environment.
-        // OS/NE sync.
+        // t_1: OS / OS-CE / other PE / other PE's CE ==> t_2: OS.
+        // t_1: eid's CE ==> t_2: eid's same CE.
         invariant (current_mode == mode_untrusted) ==> 
-                    (cpu_enclave_id_1 == tap_null_enc_id ==> 
+            ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] != eid) ==> 
                         cpu_enclave_id_2 == tap_null_enc_id);
         invariant (current_mode == mode_untrusted) ==> 
-            ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == tap_null_enc_id) ==> 
-                tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == tap_null_enc_id);
-        // due to Z3 prover's features, we add some trivial claims in the precondition of this claim.
-        invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
-            (cpu_enclave_id_1 == cpu_enclave_id_2);
+            ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
+                        tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid);
+        invariant (current_mode == mode_untrusted) ==> 
+            ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
+                        cpu_enclave_id_1 == cpu_enclave_id_2);
+        
+        // invariant (current_mode == mode_untrusted) ==> 
+        //             (cpu_enclave_id_1 == tap_null_enc_id ==> 
+        //                 cpu_enclave_id_2 == tap_null_enc_id);
+        // invariant (current_mode == mode_untrusted) ==> 
+        //     ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == tap_null_enc_id) ==> 
+        //         tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == tap_null_enc_id);
+        // // due to Z3 prover's features, we add some trivial claims in the precondition of this claim.
+        // invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
+        //     (cpu_enclave_id_1 == cpu_enclave_id_2);
+
         // PE sync. the PE's structure must be same.
         invariant (forall e : tap_enclave_id_t :: 
             (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
@@ -733,13 +758,6 @@ procedure ProveIntegrity()
                 // sanity check.
                 assert current_mode == mode_enclave;
                 assert !enclave_dead;
-            } else if ((r_proof_op == tap_proof_op_exit || r_proof_op == tap_proof_op_pause) && cpu_enclave_id_1 == tap_null_enc_id) {
-                // case 2. sync NE exit/pause into OS.
-                // sanity check.
-                call current_mode, enclave_dead := IntegrityAdversarialStep(
-                        current_mode, eid, r_eid, r_regs, r_proof_op);
-                assert !enclave_dead;
-                // assert cpu_enclave_id_1 == cpu_enclave_id;
             }
             call SaveContext_2();
 
