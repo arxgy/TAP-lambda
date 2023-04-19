@@ -502,16 +502,19 @@ procedure measurement_proof_part1()
   ensures !tap_enclave_metadata_privileged_1[tap_null_enc_id];
   ensures !tap_enclave_metadata_privileged_2[tap_null_enc_id];
   ensures tap_enclave_metadata_privileged_1[eid_1] == tap_enclave_metadata_privileged_2[eid_2];
-  //  privileged relationship: unique PE
-  ensures (e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-          (tap_enclave_metadata_privileged_1[e] <==> e == eid_1));
-  ensures (e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-          (tap_enclave_metadata_privileged_2[e] <==> e == eid_2));
+  ensures tap_enclave_metadata_privileged_1[eid_1] == e_privileged_1;
+  ensures tap_enclave_metadata_privileged_2[eid_2] == e_privileged_2;
 
-  ensures (!e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-          (!tap_enclave_metadata_privileged_1[e]));
-  ensures (!e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-          (!tap_enclave_metadata_privileged_2[e]));
+  //  Apr 8, 2023
+  //  privileged relationship: unique PE
+  //  Apr 19, 2023
+  //  privileged relationship: multiple PE
+  ensures (forall e : tap_enclave_id_t :: 
+        (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
+            (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+  ensures (forall e : tap_enclave_id_t :: 
+        (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
+            (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
 
   // valid guarantee
   ensures tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -805,15 +808,17 @@ procedure measurement_proof_part2
   requires !tap_enclave_metadata_privileged_1[tap_null_enc_id];
   requires !tap_enclave_metadata_privileged_2[tap_null_enc_id];
   requires  tap_enclave_metadata_privileged_1[eid_1] == tap_enclave_metadata_privileged_2[eid_2];
-  //  privileged relationship: unique PE
-  requires (e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-            (tap_enclave_metadata_privileged_1[e] <==> e == eid_1));
-  requires (e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-            (tap_enclave_metadata_privileged_2[e] <==> e == eid_2));
-  requires (!e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-            (!tap_enclave_metadata_privileged_1[e]));
-  requires (!e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-            (!tap_enclave_metadata_privileged_2[e]));
+  requires  tap_enclave_metadata_privileged_1[eid_1] == e_privileged_1;
+  requires  tap_enclave_metadata_privileged_2[eid_2] == e_privileged_2;
+  //  Apr 19, 2023
+  //  privileged relationship: multiple PE
+  requires (forall e : tap_enclave_id_t :: 
+        (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
+            (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+  requires (forall e : tap_enclave_id_t :: 
+        (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
+            (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
+
   // valid guarantee
   requires tap_enclave_metadata_valid_1[tap_null_enc_id];
   requires tap_enclave_metadata_valid_2[tap_null_enc_id];
@@ -891,18 +896,16 @@ procedure measurement_proof_part2
     invariant !tap_enclave_metadata_privileged_1[tap_null_enc_id];
     invariant !tap_enclave_metadata_privileged_2[tap_null_enc_id];
     invariant tap_enclave_metadata_privileged_1[eid_1] == tap_enclave_metadata_privileged_2[eid_2];
-
-    //  privileged relationship: unique PE
-    invariant (e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-            (tap_enclave_metadata_privileged_1[e] <==> e == eid_1));
-    invariant (e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-            (tap_enclave_metadata_privileged_2[e] <==> e == eid_2));
-
-    invariant (!e_privileged_1) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-            (!tap_enclave_metadata_privileged_1[e]));
-    invariant (!e_privileged_2) ==> (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-            (!tap_enclave_metadata_privileged_2[e]));
-
+    invariant  tap_enclave_metadata_privileged_1[eid_1] == e_privileged_1;
+    invariant  tap_enclave_metadata_privileged_2[eid_2] == e_privileged_2;
+    //  Apr 19, 2023
+    //  privileged relationship: multiple PE
+    invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
+                (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+    invariant (forall e : tap_enclave_id_t :: 
+            (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
+                (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
     // valid guarantee
     invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
     invariant tap_enclave_metadata_valid_2[tap_null_enc_id];

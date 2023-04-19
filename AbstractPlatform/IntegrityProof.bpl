@@ -154,7 +154,6 @@ procedure {:inline 1} IntegrityAdversarialStep(
     enclave_dead := false;
 
     // Allow OS to launch PE.
-    // assume !r_privileged;
 
     // init case:   OS (r_eid == null): r_privileged = 1/0
     //              PE (r_eid != null): r_privileged = 0.
@@ -499,15 +498,6 @@ procedure ProveIntegrity()
         invariant tap_enclave_metadata_privileged_1[eid] == e_privileged;
         invariant tap_enclave_metadata_privileged_2[eid] == e_privileged;
 
-        //  Feb 15, 2023.
-        //  privileged relationship:
-        // invariant (forall e : tap_enclave_id_t :: 
-        //     (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
-        //         (tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]));
-        // invariant (forall e : tap_enclave_id_t :: 
-        //     (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
-        //         (!tap_enclave_metadata_privileged_2[e]));
-        
         //  Apr 8, 2023
         //  privileged relationship: unique PE
         //  Apr 19, 2023
@@ -518,15 +508,6 @@ procedure ProveIntegrity()
         invariant (forall e : tap_enclave_id_t :: 
                 (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
                         (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
-
-        // invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_1[e]) ==>
-        //     (tap_enclave_metadata_privileged_1[e] <==> e == eid));
-        // invariant (e_privileged) ==> (forall e : tap_enclave_id_t ::   (tap_enclave_metadata_valid_2[e]) ==>
-        //     (tap_enclave_metadata_privileged_2[e] <==> e == eid));
-        // invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_1[e]) ==> 
-        //     (!tap_enclave_metadata_privileged_1[e]));
-        // invariant (!e_privileged) ==> (forall e : tap_enclave_id_t ::  (tap_enclave_metadata_valid_2[e]) ==> 
-        //     (!tap_enclave_metadata_privileged_2[e]));
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -676,16 +657,6 @@ procedure ProveIntegrity()
         invariant (current_mode == mode_untrusted) ==> 
             ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
                         cpu_enclave_id_1 == cpu_enclave_id_2);
-        
-        // invariant (current_mode == mode_untrusted) ==> 
-        //             (cpu_enclave_id_1 == tap_null_enc_id ==> 
-        //                 cpu_enclave_id_2 == tap_null_enc_id);
-        // invariant (current_mode == mode_untrusted) ==> 
-        //     ((cpu_enclave_id_1 != tap_null_enc_id && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == tap_null_enc_id) ==> 
-        //         tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == tap_null_enc_id);
-        // // due to Z3 prover's features, we add some trivial claims in the precondition of this claim.
-        // invariant (current_mode == mode_untrusted && cpu_enclave_id_1 != tap_null_enc_id && cpu_enclave_id_1 != eid && tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
-        //     (cpu_enclave_id_1 == cpu_enclave_id_2);
 
         // PE sync. the PE's structure must be same.
         invariant (forall e : tap_enclave_id_t :: 
@@ -739,7 +710,6 @@ procedure ProveIntegrity()
     {
         havoc i_eid, r_eid, r_proof_op, e_proof_op, r_regs;
         if (current_mode == mode_untrusted) {   
-            // assume false;
             assume tap_proof_op_valid(r_proof_op);
             // execute the operation in trace_1
             call RestoreContext_1();
@@ -763,7 +733,6 @@ procedure ProveIntegrity()
 
         } else if (current_mode == mode_enclave) {
             havoc iter;
-            // assume false;
             if (e_privileged) {
                 assume tap_proof_op_valid_in_privileged(e_proof_op);
                 
