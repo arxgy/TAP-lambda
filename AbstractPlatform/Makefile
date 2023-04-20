@@ -5,18 +5,18 @@ else
 	BOOGIESMOKE:=
 endif
 BOOGIE := boogie
-BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
+BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
 					/proverOpt:O:parallel.enable=true \
 					/traceverify \
 					/trace	\
 					/printModel:1 \
-					/printModelToFile:log/model.log \
 					/errorTrace:2 \
 					/enhancedErrorMessages:0 \
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
-					/proc:launch \
 					/proverWarnings:1 \
+					/proc:InitialHavoc \
+					# /printModelToFile:log/model.log \
 					#  /timeLimit:900 \
 					#  /break \
 # /traceverify

@@ -350,8 +350,23 @@ procedure launch(
                     (cpu_owner_map[pa] != e));
 
     requires (!tap_enclave_metadata_privileged[tap_null_enc_id]);
-    // add non-valid demand into requires. Apr 6, 2023.
     requires (!tap_enclave_metadata_valid[eid]);
+    // launch validity
+    requires (tap_enclave_metadata_valid[tap_null_enc_id]);
+    requires (forall e : tap_enclave_id_t :: 
+        tap_enclave_metadata_valid[e] ==> tap_enclave_metadata_owner_map[e] != eid);
+    // Ownermap consistency as prerequisite.
+    requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        (tap_enclave_metadata_owner_map[tap_enclave_metadata_owner_map[e]] == tap_null_enc_id));
+
+    // bi-direction, seems to be stronger but just as same.
+    requires (forall va : vaddr_t :: 
+        excl_vaddr[va] <==> excl_paddr[addr_map[va]]);
+
+    requires (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        ((tap_enclave_metadata_valid[e] && (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e))); 
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==>
@@ -485,7 +500,7 @@ procedure launch(
     // TODO: we can improve this. Apr 8, 2023.
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
         ((tap_enclave_metadata_valid[e] && (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
-            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e))); 
 
 
 // -------------------------------------------------------------------- //
@@ -506,7 +521,11 @@ procedure enter(eid: tap_enclave_id_t)
     requires (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
-    
+
+    requires (tap_enclave_metadata_privileged[cpu_enclave_id]) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -596,9 +615,9 @@ procedure resume(eid: tap_enclave_id_t)
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
 
-    // /* TODO: redundant? why running enclave cannot be invalid? */
-    // requires ((cpu_enclave_id != tap_null_enc_id) ==> 
-    //                 (tap_enclave_metadata_valid[cpu_enclave_id]));
+    requires (tap_enclave_metadata_privileged[cpu_enclave_id]) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
 
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
@@ -701,6 +720,10 @@ procedure exit()
     requires ((tap_enclave_metadata_owner_map[cpu_enclave_id] == tap_null_enc_id) || 
               (tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]));
 
+    requires (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -787,6 +810,11 @@ procedure pause()
     requires (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
+
+    requires (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
+        (forall v : vaddr_t :: 
+            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -953,6 +981,24 @@ procedure block_memory_region(bmap : excl_map_t)
     requires (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
+
+    requires (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        (tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
+    requires (forall v : vaddr_t :: 
+        (tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]])) ==> 
+            (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));
+
+    requires (tap_enclave_metadata_valid[tap_null_enc_id]);
+    requires !tap_enclave_metadata_valid[tap_blocked_enc_id];
+    requires (tap_enclave_metadata_valid[cpu_enclave_id]);
+
+    requires !tap_enclave_metadata_privileged[tap_null_enc_id];
+    // Ownermap consistency as prerequisite.
+    requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
+
     ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
@@ -972,16 +1018,13 @@ procedure block_memory_region(bmap : excl_map_t)
     ensures (status != enclave_op_success) ==> 
                 old(cpu_owner_map) == cpu_owner_map;
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
-        (tap_enclave_metadata_valid[e] ==> 
-            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e)); 
-    ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
-        tap_enclave_metadata_valid[e] && 
-        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]]) ==> 
-            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e);
+        (tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
     ensures (forall v : vaddr_t :: 
-        tap_enclave_metadata_valid[cpu_enclave_id] && 
-        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
-            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
+        (tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]])) ==> 
+            (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));
 
    
 // -------------------------------------------------------------------- //
@@ -998,9 +1041,22 @@ procedure release_blocked_memory(bmap : excl_map_t)
     requires (forall pa : wap_addr_t, e : tap_enclave_id_t ::
                 (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
                     (cpu_owner_map[pa] != e));
-    ensures  (forall pa : wap_addr_t, e : tap_enclave_id_t ::
-                (valid_enclave_id(e) && !tap_enclave_metadata_valid[e]) ==> 
-                    (cpu_owner_map[pa] != e));
+    requires (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        (tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
+    requires (forall v : vaddr_t :: 
+        (tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]])) ==> 
+            (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));
+
+    requires (tap_enclave_metadata_valid[tap_null_enc_id]);
+    requires !tap_enclave_metadata_valid[tap_blocked_enc_id];
+    requires (tap_enclave_metadata_valid[cpu_enclave_id]);
+
+    requires !tap_enclave_metadata_privileged[tap_null_enc_id];
+    // Ownermap consistency as prerequisite.
+    requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
 
     // success condition.
     ensures ((forall p : wap_addr_t ::
@@ -1020,10 +1076,10 @@ procedure release_blocked_memory(bmap : excl_map_t)
                 (old(cpu_owner_map) == cpu_owner_map &&
                  old(cpu_mem) == cpu_mem);
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
-        tap_enclave_metadata_valid[e] && 
-        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]]) ==> 
-            tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e);
+        (tap_enclave_metadata_valid[e] && 
+        (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
     ensures (forall v : vaddr_t :: 
-        tap_enclave_metadata_valid[cpu_enclave_id] && 
-        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]]) ==> 
-            tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id);
+        (tap_enclave_metadata_valid[cpu_enclave_id] && 
+        (tap_enclave_metadata_privileged[cpu_enclave_id] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[cpu_enclave_id]])) ==> 
+            (tap_enclave_metadata_addr_excl[cpu_enclave_id][v] <==> cpu_owner_map[cpu_addr_map[v]] == cpu_enclave_id));

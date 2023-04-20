@@ -339,6 +339,9 @@ implementation launch(
         status := enclave_op_invalid_arg;
         return;
     }
+    assert (forall e : tap_enclave_id_t, v : vaddr_t :: 
+        ((tap_enclave_metadata_valid[e] && (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+            (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e))); 
 
     // Set the CPU owner map.
     paddr := k0_wap_addr_t;
@@ -354,11 +357,20 @@ implementation launch(
         invariant (forall e : tap_enclave_id_t, pa : wap_addr_t ::
                     (e != eid && e != tap_null_enc_id) ==> 
                         (cpu_owner_map[pa] == e) ==> (cpu_owner_map[pa] == old(cpu_owner_map)[pa]));
+        invariant (forall pa : wap_addr_t :: 
+            (LT_wapa(pa, paddr)) ==> (excl_paddr[pa] <==> cpu_owner_map[pa] == eid));
+        invariant (forall e : tap_enclave_id_t, v : vaddr_t :: 
+              ((e != eid && 
+                tap_enclave_metadata_valid[e] && 
+                (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
+                (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] ==e )));
     {
         if (excl_paddr[paddr]) { cpu_owner_map[paddr] := eid; }
+        else if (cpu_owner_map[paddr] == eid) { cpu_owner_map[paddr] := tap_null_enc_id; }
         paddr := PLUS_wapa(paddr, k1_wap_addr_t);
     }
     if (excl_paddr[paddr]) { cpu_owner_map[paddr] := eid; }
+    else if (cpu_owner_map[paddr] == eid) { cpu_owner_map[paddr] := tap_null_enc_id; }
 
     // regs are zeroed out.
     call cache_conflict := does_enclave_conflict(eid);
@@ -575,6 +587,7 @@ implementation block_memory_region(bmap : excl_map_t)
 {
     var pa : wap_addr_t;
 
+    // assert !tap_enclave_metadata_valid[tap_blocked_enc_id];
     // First make sure that all the addresses in bmap are blocked.
     pa := k0_wap_addr_t;
     while (LT_wapa(pa, kmax_wap_addr_t))
@@ -597,6 +610,7 @@ implementation block_memory_region(bmap : excl_map_t)
     // Now go around clearing each address in bmap.
     pa := k0_wap_addr_t;
     while (LT_wapa(pa, kmax_wap_addr_t))
+        invariant (bmap[pa] ==> cpu_owner_map[pa] == tap_null_enc_id);
         invariant (forall p : wap_addr_t :: bmap[p] ==> 
                         (if (LT_wapa(p, pa))
                             then cpu_owner_map[p] == tap_blocked_enc_id
@@ -607,13 +621,24 @@ implementation block_memory_region(bmap : excl_map_t)
                             else cpu_owner_map[p] == old(cpu_owner_map[p]));
     {
         if (bmap[pa]) {
+            assert (cpu_owner_map[pa] == tap_null_enc_id);
             cpu_owner_map[pa] := tap_blocked_enc_id;
+        } else {
+            cpu_owner_map[pa] := cpu_owner_map[pa];
         }
         pa := PLUS_wapa(pa, k1_wap_addr_t);
     }
     if (bmap[pa]) {
+        assert (cpu_owner_map[pa] == tap_null_enc_id);
         cpu_owner_map[pa] := tap_blocked_enc_id;
+    } else {
+        cpu_owner_map[pa] := cpu_owner_map[pa];
     }
+
+    assert (forall p : wap_addr_t :: 
+            if bmap[p] 
+               then (old(cpu_owner_map)[p] == tap_null_enc_id) 
+               else true);
     assert (forall p : wap_addr_t :: 
             if bmap[p] 
                then (cpu_owner_map[p] == tap_blocked_enc_id) 
