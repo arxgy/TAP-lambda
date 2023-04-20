@@ -5,6 +5,9 @@ else
 	BOOGIESMOKE:=
 endif
 BOOGIE := boogie
+# This OPT is used for top level proof, 
+# which use relevancy propagation to speedup the z3 prover.
+
 BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
 					/proverOpt:O:parallel.enable=true \
 					/traceverify \
@@ -15,10 +18,26 @@ BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorL
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
 					/proverWarnings:1 \
-					/proc:InitialHavoc \
-					# /printModelToFile:log/model.log \
+					/noproc:measure_state_self_composed \
+					/printModelToFile:log/model.log \
 					#  /timeLimit:900 \
 					#  /break \
+					
+# This OPT is used for lower level measurment case (Part I), 
+# which shows high performance on bit-vector-related while loop.
+
+MEASUREOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
+					/proverOpt:O:parallel.enable=true \
+					/traceverify \
+					/trace	\
+					/printModel:1 \
+					/errorTrace:2 \
+					/enhancedErrorMessages:0 \
+					/proverLog:log/prover.log \
+					/printCFG:dotfiles/ctrlflow \
+					/proverWarnings:1 \
+					/proc:ProveConfidentialityPT \
+					/printModelToFile:log/model.log \
 # /traceverify
 # /errorTrace
 COMMON=../Common

@@ -462,7 +462,9 @@ procedure ProveIntegrity()
     
     // debug variables
     var pc_op_1, pc_op_2    : word_t;
-
+    // non-critial ensurance.
+    assume (forall va : vaddr_t :: 
+        e_excl_vaddr[va] <==> e_excl_map[e_addr_map[va]]);
     // launch the same enclave in both traces.
     call RestoreContext_1();
     call current_mode_1 := InitialHavoc(eid);

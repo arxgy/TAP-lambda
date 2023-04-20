@@ -123,6 +123,10 @@ procedure ProveConfidentialityPT(
 
     // launch should not leave the PC in an untenable sitation.
     assume !e_excl_map[cpu_addr_map[cpu_pc]];
+    assume (forall va : vaddr_t :: 
+            e_excl_vaddr[va] <==> e_excl_map[e_addr_map_1[va]]);
+    assume (forall va : vaddr_t :: 
+            e_excl_vaddr[va] <==> e_excl_map[e_addr_map_2[va]]);
     // now launch enclave_1.
     call RestoreContext_1();
     call InitOSMem(e_excl_map, e_container_data_1);

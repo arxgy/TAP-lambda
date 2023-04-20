@@ -599,6 +599,10 @@ procedure measurement_proof_part1()
   call SaveContext_2();
 
   assume valid_enclave_id_index(eid_1) && valid_enclave_id_index(eid_2);
+  assume (forall va : vaddr_t :: 
+        e_excl_vaddr_1[va] <==> e_excl_map_1[e_addr_map_1[va]]);
+  assume (forall va : vaddr_t :: 
+        e_excl_vaddr_2[va] <==> e_excl_map_2[e_addr_map_2[va]]);
   // Enclave 1
   call RestoreContext_1();
   call current_mode_1 := InitialHavoc(eid_1);

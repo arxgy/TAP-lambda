@@ -333,7 +333,7 @@ procedure LaunchHavoc(eid : tap_enclave_id_t)
     ensures (forall v : vaddr_t :: 
         (excl_vaddr[v] ==> tap_addr_perm_v(addr_valid[v])));
     ensures (forall v : vaddr_t :: 
-        (excl_vaddr[v] ==> excl_map[addr_map[v]]));
+        (excl_vaddr[v] <==> excl_map[addr_map[v]]));
     ensures (forall v1, v2 : vaddr_t :: 
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
 
@@ -357,7 +357,7 @@ procedure LaunchInputHavoc(eid : tap_enclave_id_t)
     ensures (forall v : vaddr_t :: 
         (excl_vaddr[v] ==> tap_addr_perm_v(addr_valid[v])));
     ensures (forall v : vaddr_t :: 
-        (excl_vaddr[v] ==> excl_map[addr_map[v]]));
+        (excl_vaddr[v] <==> excl_map[addr_map[v]]));
     ensures (forall v1, v2 : vaddr_t :: 
         !vaddr_alias(excl_vaddr, addr_map, v1, v2)); 
 
