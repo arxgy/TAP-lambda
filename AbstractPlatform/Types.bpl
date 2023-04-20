@@ -219,24 +219,8 @@ const tap_user_def_enc_id_5 : tap_enclave_id_t;
 axiom tap_user_def_enc_id_5 == 6;
 const tap_user_def_enc_id_6 : tap_enclave_id_t;
 axiom tap_user_def_enc_id_6 == 6;
-// const tap_user_def_enc_id_head : tap_enclave_id_t;
-// axiom tap_user_def_enc_id_head == 1;
-// const tap_user_def_enc_id_tail : tap_enclave_id_t;
-// axiom tap_user_def_enc_id_tail == 6;
 
-// const tap_privil_enc_id_size : index_t;
-// axiom tap_privil_enc_id_size == 16;
-// const tap_privil_enc_id_head : tap_enclave_id_t;
-// axiom tap_privil_enc_id_head == tap_user_def_enc_id_tail + 1;
-// const tap_privil_enc_id_tail : tap_enclave_id_t;
-// axiom tap_privil_enc_id_tail == tap_privil_enc_id_head + tap_privil_enc_id_size;
 
-// function privileged_enclave_id (id: tap_thread_id_t) : bool
-// {
-//   id >= tap_privil_enc_id_head && id < tap_privil_enc_id_tail
-// } 
-
-  // strange bug: if no id_6, id_5 will be omitted?
 function valid_enclave_id(id : tap_enclave_id_t) : bool
 { 
   id != tap_null_enc_id       && id != tap_blocked_enc_id    &&

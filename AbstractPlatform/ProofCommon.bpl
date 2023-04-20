@@ -277,16 +277,6 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
                 special_enclave_id(e) ==> !tap_enclave_metadata_valid[e]);
     // eid cannot be valid at init stage.
     ensures !tap_enclave_metadata_valid[eid];
-    // randomness control: differrent traces have same ownermap at beginning.
-    // cut branches: those ensures will cost a lot
-
-    // ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-    //             (tap_enclave_metadata_valid[tap_enclave_metadata_owner_map[e]]));
-    // ensures (forall e : tap_enclave_id_t :: 
-    //             (tap_enclave_metadata_owner_map[e] != eid));
-    // ensures (forall e : tap_enclave_id_t :: 
-    //             !valid_enclave_id(e) ==> 
-    //                 !tap_enclave_metadata_valid[e]);
 
     ensures (forall e : tap_enclave_id_t ::
                 tap_enclave_metadata_valid[e] ==> 
@@ -410,12 +400,3 @@ function uf_observation_cache(hit1 : bool, hit2 : bool) : word_t;
 function uf_observation_pt(r_valid : addr_perm_t, r_paddr : wap_addr_t) : word_t;
 
 function uf_load_selector(pc : vaddr_t, op : word_t, r1 : word_t, r2 : word_t) : tap_enclave_id_t;
-
-// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
-//     tap_enclave_metadata_valid[uf_load_selector(i_eid, r1, r2)]);
-// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
-//     tap_enclave_metadata_privileged[i_eid] ==> 
-//         uf_load_selector(i_eid, r1, r2) == i_eid || tap_enclave_metadata_owner_map[uf_load_selector(i_eid, r1, r2)] == i_eid);
-// axiom (forall i_eid : tap_enclave_id_t, r1 : word_t, r2 : word_t :: 
-//     !tap_enclave_metadata_privileged[i_eid] ==> 
-//         uf_load_selector(i_eid, r1, r2) == i_eid);

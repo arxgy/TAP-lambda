@@ -15,7 +15,7 @@ BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorL
 					/enhancedErrorMessages:0 \
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
-					/proc:measurement_proof_part2 \
+					/proc:launch \
 					/proverWarnings:1 \
 					#  /timeLimit:900 \
 					#  /break \
@@ -49,6 +49,7 @@ MEASUREMENT_PROOF_FILES:=MeasurementProof.bpl
 TEMP_PROOF_FILES:=temp.bpl
 
 all: $(CPU_TARGET) $(MEASUREMENT_TARGET) $(COMMON_PROOF_TARGET) $(INTEGRITY_PROOF_TARGET) $(MEM_CONFIDENTIALITY_PROOF_TARGET) $(CACHE_CONFIDENTIALITY_PROOF_TARGET) $(PT_CONFIDENTIALITY_PROOF_TARGET) $(MEASUREMENT_PROOF_TARGET)
+
 cpu: $(CPU_TARGET)
 intipf: $(INTEGRITY_PROOF_TARGET)
 # M
@@ -58,7 +59,10 @@ cacheconf : $(CACHE_CONFIDENTIALITY_PROOF_TARGET)
 # P
 ptconf : $(PT_CONFIDENTIALITY_PROOF_TARGET)
 measurepf: $(MEASUREMENT_PROOF_TARGET)
-cmnpf : $(COMMON_PROOF_TARGET)
+
+measure : $(MEASUREMENT_TARGET)
+
+commonpf : $(COMMON_PROOF_TARGET)
 
 $(CPU_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CPU_IMPL_FILES)
 	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^

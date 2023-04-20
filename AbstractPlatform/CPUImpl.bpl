@@ -60,7 +60,7 @@ procedure do_mappings_alias_v(
             <==> alias;
     ensures (forall v1, v2 : vaddr_t :: !vaddr_alias(addr_valid, addr_map, v1, v2)) 
             <==> (!alias);
-// TODO: Provide implementation for this.
+
 
 procedure does_paddr_conflict(eid : tap_enclave_id_t, pa1 : wap_addr_t) 
   returns (conflict : bool)
@@ -242,7 +242,7 @@ implementation launch(
   /* privileged        */ privileged      : bool
 )
     returns (status : enclave_op_result_t)
-{
+{  
     var i, k             : int;
     var mappings_alias_v : bool;
     var paddr            : wap_addr_t;
