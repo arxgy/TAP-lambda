@@ -5,10 +5,12 @@ else
 	BOOGIESMOKE:=
 endif
 BOOGIE := boogie
-# This OPT is used for top level proof, 
-# which use relevancy propagation to speedup the z3 prover.
+# 1. UpperLevel OPT is used for top level proof, 
+#    which use relevancy propagation to speedup the z3 prover.
 
-BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
+# 2. LowerLevel OPT is used for lower level measurment case (Part I), 
+#    which shows high performance on bit-vector-related while loop.
+UPPERLEVELOPT_DBG:=	/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
 					/proverOpt:O:parallel.enable=true \
 					/traceverify \
 					/trace	\
@@ -18,15 +20,10 @@ BOOGIEOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorL
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
 					/proverWarnings:1 \
-					/noproc:measure_state_self_composed \
 					/printModelToFile:log/model.log \
-					#  /timeLimit:900 \
-					#  /break \
 					
-# This OPT is used for lower level measurment case (Part I), 
-# which shows high performance on bit-vector-related while loop.
 
-MEASUREOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
+LOWERLEVELOPT_DBG:=	/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) \
 					/proverOpt:O:parallel.enable=true \
 					/traceverify \
 					/trace	\
@@ -36,10 +33,12 @@ MEASUREOPT:= 		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /error
 					/proverLog:log/prover.log \
 					/printCFG:dotfiles/ctrlflow \
 					/proverWarnings:1 \
-					/proc:ProveConfidentialityPT \
+					/proc:* \
 					/printModelToFile:log/model.log \
-# /traceverify
-# /errorTrace
+
+UPPERLEVELOPT:=		/proverOpt:O:smt.relevancy=2 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) 
+LOWERLEVELOPT:=		/proverOpt:O:smt.relevancy=0 /proverOpt:O:smt.case_split=2 /errorLimit:1 $(BOOGIESMOKE) 
+
 COMMON=../Common
 BUILD=build
 CPU_TARGET:=$(BUILD)/CPU.xml
@@ -64,6 +63,7 @@ MEM_CONFIDENTIALITY_PROOF_FILES:=MemConfidentialityProof.bpl
 CACHE_CONFIDENTIALITY_PROOF_FILES:=CacheConfidentialityProof.bpl
 PT_CONFIDENTIALITY_PROOF_FILES:=PTConfidentialityProof.bpl
 MEASUREMENT_FILES:=Measure.bpl 
+MEASUREMENT_IMPL_FILES:=MeasureImpl.bpl 
 MEASUREMENT_PROOF_FILES:=MeasurementProof.bpl
 TEMP_PROOF_FILES:=temp.bpl
 
@@ -84,31 +84,31 @@ measure : $(MEASUREMENT_TARGET)
 commonpf : $(COMMON_PROOF_TARGET)
 
 $(CPU_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CPU_IMPL_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(LOWERLEVELOPT) /xml:$@ $^
 
 $(INTEGRITY_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(INTEGRITY_PROOF_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 $(MEM_CONFIDENTIALITY_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CONFIDENTIALITY_COMMON_FILES) $(MEM_CONFIDENTIALITY_PROOF_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 $(CACHE_CONFIDENTIALITY_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CONFIDENTIALITY_COMMON_FILES) $(CACHE_CONFIDENTIALITY_PROOF_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 $(PT_CONFIDENTIALITY_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(CONFIDENTIALITY_COMMON_FILES) $(PT_CONFIDENTIALITY_PROOF_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 $(COMMON_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(COMMON_PROOF_FILES)  $(COMMON_IMPL_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
-$(MEASUREMENT_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(MEASUREMENT_FILES) $(COMMON_PROOF_FILES) 
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+$(MEASUREMENT_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES)  $(COMMON_PROOF_FILES)  $(MEASUREMENT_FILES) $(MEASUREMENT_IMPL_FILES)
+	$(BOOGIE) $(LOWERLEVELOPT) /xml:$@ $^
 
 $(MEASUREMENT_PROOF_TARGET): $(ATP_COMMON_FILES) $(CPU_FILES) $(MEASUREMENT_PROOF_FILES) $(MEASUREMENT_FILES) $(COMMON_PROOF_FILES) 
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 $(TEMP_PROOF_TARGET):  $(TEMP_PROOF_FILES) $(COMMON_PROOF_FILES) $(CPU_FILES) $(ATP_COMMON_FILES)
-	$(BOOGIE) $(BOOGIEOPT) /xml:$@ $^
+	$(BOOGIE) $(UPPERLEVELOPT) /xml:$@ $^
 
 
 
