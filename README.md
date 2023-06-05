@@ -1,7 +1,7 @@
-# TAP (Privileged)
+# $\text{TAP}^2$
 > This document is provided by Ganxiang Yang @ Apr 20, 2023.
 # Intro
-This model provides an extended Trusted Abstract Platform (TAP) model with the newly proposed **Privileged Enclave** primitive. **Privileged Enclave** is an efficient extension designed for data sharing and introspection within/onto enclaves.
+This model provides an extended Trusted Abstract Platform (TAP) model with the newly proposed **Privileged Enclave** prototype. **Privileged Enclave** is an efficient extension designed for data sharing and introspection within/onto enclaves.
 
 In this project. the Secure Measurement, Integrity, and Confidentiality (which are decompositions of SRE property) are proved to be maintained in the extended model.
 # Setup
