@@ -162,7 +162,7 @@ procedure ProveConfidentialityCache(
         // state that trusted cache lines do not conflict with untrusted lines.
         // The cache between enclave and untrusted region is physically isolated.
         // No tag-sync requirement:  do inspection on non-exclusive region is permitted.
-        // by Ganxiang Yang @ Apr 18, 2023.
+        // by Anonymous Author @ Apr 18, 2023.
         invariant (cpu_cache_enabled && !cache_conflict) ==>
                     (forall p1, p2 : wap_addr_t ::
                       (e_excl_map[p1] && !e_excl_map[p2]) ==>
