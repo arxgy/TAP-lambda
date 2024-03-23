@@ -5,11 +5,39 @@ This model provides an extended Trusted Abstract Platform (TAP) model with the n
 
 In this project. the Secure Measurement, Integrity, and Confidentiality (which are decompositions of SRE property) are proved to be maintained in the extended model.
 # Setup
-Install Boogie 2.16.4.0 on your platform (dotnet is recommended), and export `boogie` to your environment variables.
+Install Boogie 2.16.0 on your platform (dotnet is recommended), and export `boogie` to your environment variables.
 
-TODO.
-(detailed install steps)
+1. Update your apt package.
 
+    ```
+    wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+    sudo dpkg -i packages-microsoft-prod.deb
+    rm packages-microsoft-prod.deb
+    ```
+2. Install .NET 6.0
+
+    ```
+    sudo apt-get update && \ sudo apt-get install -y dotnet-sdk-6.0
+    sudo apt-get update && \ sudo apt-get install -y aspnetcore-runtime-6.0
+    ```
+
+3. Install boogie 2.16
+    
+    ```
+    dotnet tool install --global boogie --version 2.16
+    ```
+
+4. Add Boogie toolchains to your environment variables. (optional)
+
+    ```
+    export PATH=$PATH:$HOME/.dotnet/tools/
+    ```
+5. Install Z3
+
+    ```
+    sudo apt-get update && \ sudo apt-get -y install z3
+    ```
+    
 # Run
     $ cd AbstractPlatform
     $ make clean && make all
