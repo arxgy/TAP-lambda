@@ -328,6 +328,7 @@ procedure {:inline 1} IntegrityEnclaveStep(
             call InitOSMem(p_container_valid, p_container_data);
             // Apr 6, 2023. add a buildup stage for launch.
             call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
+            // should be deprecated
             assume !r_privileged;
             call status := launch(r_eid, r_addr_valid, r_addr_map,
                                 r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
@@ -488,6 +489,7 @@ procedure ProveIntegrity()
 
     // main loop.
     enclave_dead := false;
+    assert cpu_enclave_id_1 == tap_null_enc_id && cpu_enclave_id_2 == tap_null_enc_id;
 
     while (!enclave_dead)
         //----------------------------------------------------------------------//
@@ -507,10 +509,12 @@ procedure ProveIntegrity()
         //  privileged relationship: multiple PE
         invariant (forall e : tap_enclave_id_t :: 
                 (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
-                        (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+                    distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t) == tap_null_enc_id);
+                    // pe_farthest_parent(tap_enclave_metadata_owner_map_1, e) == tap_null_enc_id);
         invariant (forall e : tap_enclave_id_t :: 
                 (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
-                        (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
+                    distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t) == tap_null_enc_id);
+                    // pe_farthest_parent(tap_enclave_metadata_owner_map_2, e) == tap_null_enc_id);
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -532,11 +536,18 @@ procedure ProveIntegrity()
         invariant tap_enclave_metadata_owner_map_1[tap_null_enc_id] == tap_null_enc_id;
         invariant tap_enclave_metadata_owner_map_2[tap_null_enc_id] == tap_null_enc_id;
 
-        // enclave ownermap relationship: the maximal parent-tree depth is 2 
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-                    (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-                    (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
+        // enclave ownermap relationship: the maximal parent-tree depth is 'n'
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t+1) == tap_null_enc_id);
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
+            // farthest_parent(tap_enclave_metadata_owner_map_1, eid) == tap_null_enc_id);
+            // farthest_parent(tap_enclave_metadata_owner_map_2, eid) == tap_null_enc_id);
+
+        // invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
+        //             (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
+        // invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
+        //             (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
 
         // enclave ownermap relationship: Apr 4, 2023.
         //   if the mode_untrusted is from PE's children enclave, then the 2 traces is in **one** children enclave of this PE.
@@ -649,11 +660,13 @@ procedure ProveIntegrity()
         invariant (current_mode == mode_untrusted) ==> (cpu_enclave_id_2 == tap_null_enc_id || tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid);
 
         // invariants about state sync between 2 traces.
-        // t_1: OS / OS-CE / other PE / other PE's CE ==> t_2: OS.
-        // t_1: eid's CE ==> t_2: eid's same CE.
         invariant (current_mode == mode_untrusted) ==> 
             ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] != eid) ==> 
-                        cpu_enclave_id_2 == tap_null_enc_id);
+                if is_ancestor(tap_enclave_metadata_owner_map_1, cpu_enclave_id_1, eid)
+                    then tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid && 
+                         is_ancestor(tap_enclave_metadata_owner_map_1, cpu_enclave_id_1, cpu_enclave_id_2)
+                    else cpu_enclave_id_2 == tap_null_enc_id); 
+                    
         invariant (current_mode == mode_untrusted) ==> 
             ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
                         tap_enclave_metadata_owner_map_2[cpu_enclave_id_2] == eid);
@@ -661,12 +674,12 @@ procedure ProveIntegrity()
             ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid) ==> 
                         cpu_enclave_id_1 == cpu_enclave_id_2);
 
-        // PE sync. the PE's structure must be same.
+        // structure sync. the PE's direct-children structure must be same.
         invariant (forall e : tap_enclave_id_t :: 
             (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] == eid) <==> 
                 (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] == eid));
 
-        // PE sync. the two (PE) enclave's children pause state must be same. 
+        // PAUSE sync. the two (PE) enclave's children pause state must be same. 
         // Apr 4, 2023.
         invariant !enclave_dead ==>
                     (forall e : tap_enclave_id_t :: 

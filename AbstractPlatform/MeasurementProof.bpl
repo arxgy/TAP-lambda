@@ -781,7 +781,7 @@ procedure measurement_proof_part2
   requires (forall v : vaddr_t :: tap_enclave_metadata_addr_valid_2[eid_2][v] == e_addr_valid_2[v]);
   requires (forall v : vaddr_t :: tap_enclave_metadata_addr_map_1[eid_1][v] == e_addr_map_1[v]);
   requires (forall v : vaddr_t :: tap_enclave_metadata_addr_map_2[eid_2][v] == e_addr_map_2[v]);
-  // enclave invaraints.
+  // enclave invariant.
   requires (forall v : vaddr_t ::
                 tap_enclave_metadata_addr_excl_1[eid_1][v] ==> 
                     (cpu_owner_map_1[tap_enclave_metadata_addr_map_1[eid_1][v]] == eid_1));

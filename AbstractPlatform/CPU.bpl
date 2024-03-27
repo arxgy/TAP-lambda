@@ -43,6 +43,8 @@ var tap_enclave_metadata_cache_conflict : tap_enclave_metadata_cache_conflict_t;
 var tap_enclave_metadata_privileged     : tap_enclave_metadata_privileged_t;
 // enclave control relationships
 var tap_enclave_metadata_owner_map      : tap_enclave_metadata_owner_map_t;     // eid(child) -> eid(parent)
+
+
 // -------------------------------------------------------------------- //
 // Utility functions.                                                   //
 // -------------------------------------------------------------------- //
@@ -357,8 +359,10 @@ procedure launch(
         tap_enclave_metadata_valid[e] ==> tap_enclave_metadata_owner_map[e] != eid);
     // Ownermap consistency as prerequisite.
     requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
+    // requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+    //     (tap_enclave_metadata_owner_map[tap_enclave_metadata_owner_map[e]] == tap_null_enc_id));
     requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-        (tap_enclave_metadata_owner_map[tap_enclave_metadata_owner_map[e]] == tap_null_enc_id));
+        farthest_parent(tap_enclave_metadata_owner_map, e) == tap_null_enc_id);
 
     // bi-direction, seems to be stronger but just as same.
     requires (forall va : vaddr_t :: 
@@ -439,7 +443,9 @@ procedure launch(
     /* bug fixed: We shouldn't add post-condition requirement into result ensure clause. */
     ensures
         (((cpu_enclave_id == tap_null_enc_id ) ||
-                (old(tap_enclave_metadata_privileged)[cpu_enclave_id] && !privileged))              &&   
+          (old(tap_enclave_metadata_privileged)[cpu_enclave_id] &&  is_leaf_pe(old(tap_enclave_metadata_owner_map), cpu_enclave_id) && !privileged) || /* leaf cannot launch PE */
+          (old(tap_enclave_metadata_privileged)[cpu_enclave_id] && !is_leaf_pe(old(tap_enclave_metadata_owner_map), cpu_enclave_id)))  /* nesting PE launch */
+                                                                                                    &&   
          (valid_enclave_id(eid))                                                                    &&   
          (!old(tap_enclave_metadata_valid)[eid])                                                    &&   
          (tap_addr_perm_x(addr_valid[entrypoint]))                                                  &&   
