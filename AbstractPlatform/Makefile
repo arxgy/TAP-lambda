@@ -166,12 +166,12 @@ clean:
 	rm -f build/*.xml
 
 cut:
-	sed -n -e'/peep/,$$p' log/run.log > log/peephole.log
+	sed -n -e'/peep/,$$p' log/run.log > log/optimized_code.log
 	sed -n -e'/catch/,$$p' log/run.log > log/catch.log	
 	sed '/passive/,$$d' log/catch.log > log/onlyCatch.log
-	sed -n -e'/z3/,$$p' log/peephole.log > log/result.log	
+	sed -n -e'/z3/,$$p' log/optimized_code.log > log/result.log	
 	sed -i 's/#AT#/@/g' log/run.log 
-	sed -i 's/#AT#/@/g' log/peephole.log
+	sed -i 's/#AT#/@/g' log/optimized_code.log
 	# rm log/catch.log
 
 
