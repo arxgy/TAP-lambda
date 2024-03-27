@@ -328,8 +328,11 @@ procedure {:inline 1} IntegrityEnclaveStep(
             call InitOSMem(p_container_valid, p_container_data);
             // Apr 6, 2023. add a buildup stage for launch.
             call r_addr_valid, r_addr_map, r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged := LaunchHavoc(r_eid);
-            // should be deprecated
-            assume !r_privileged;
+            // assume !r_privileged; /* 336s */
+            // assume r_privileged; /* 22s */
+            if (is_leaf_pe(tap_enclave_metadata_owner_map, cpu_enclave_id)) {
+                assume !r_privileged;
+            }
             call status := launch(r_eid, r_addr_valid, r_addr_map,
                                 r_excl_vaddr, r_excl_map, r_entrypoint, r_privileged);
             next_mode := mode_enclave;
