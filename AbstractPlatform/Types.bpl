@@ -201,7 +201,7 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 
 // Make sense only if eid is valid.
 const kmax_depth_t : int;
-axiom kmax_depth_t == 2;
+axiom kmax_depth_t == 3;
 function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
 {
   if (depth == 1)
@@ -223,17 +223,17 @@ function is_leaf_pe (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_encl
   distant_parent(owner_map, eid, kmax_depth_t-1) != tap_null_enc_id
 }
 
-// ownermap^{(n+1)} 
-// Theorem : forall eid, farthest_parent(eid) == OS
-function farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
-{
-  owner_map[owner_map[owner_map[eid]]]
-}
-// Theorem : forall PE, pe_farthest_parent(PE) == OS
-function pe_farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
-{
-  owner_map[owner_map[eid]]
-}
+// // ownermap^{(n+1)} 
+// // Theorem : forall eid, farthest_parent(eid) == OS
+// function farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
+// {
+//   owner_map[owner_map[owner_map[owner_map[eid]]]]
+// }
+// // Theorem : forall PE, pe_farthest_parent(PE) == OS
+// function pe_farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
+// {
+//   owner_map[owner_map[eid]]
+// }
 
 // exists n \in [1, \inf], distant_parent(map, child, n) = ancestor
 // We unroll it manually according to 'kmax_depth_t'

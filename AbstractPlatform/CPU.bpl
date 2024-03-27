@@ -362,7 +362,8 @@ procedure launch(
     // requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
     //     (tap_enclave_metadata_owner_map[tap_enclave_metadata_owner_map[e]] == tap_null_enc_id));
     requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-        farthest_parent(tap_enclave_metadata_owner_map, e) == tap_null_enc_id);
+        distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t+1) == tap_null_enc_id);
+        // farthest_parent(tap_enclave_metadata_owner_map, e) == tap_null_enc_id);
 
     // bi-direction, seems to be stronger but just as same.
     requires (forall va : vaddr_t :: 
