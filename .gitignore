@@ -9,3 +9,4 @@ AbstractPlatform/backup
 AbstractPlatform/boogie2.5
 Sanctum/backup
 *.code
+*.diff

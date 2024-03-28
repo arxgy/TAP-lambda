@@ -201,7 +201,8 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 
 // Make sense only if eid is valid.
 const kmax_depth_t : int;
-axiom kmax_depth_t == 3;
+// axiom kmax_depth_t == 3;
+axiom kmax_depth_t == 2;
 function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
 {
   if (depth == 1)
@@ -240,9 +241,9 @@ function is_leaf_pe (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_encl
 function is_ancestor (owner_map :tap_enclave_metadata_owner_map_t, child : tap_enclave_id_t, ancestor : tap_enclave_id_t) : bool
 {
   /* n = 1 */            owner_map[child] == ancestor || 
-  /* n = 2 */            owner_map[owner_map[child]] == ancestor || 
+  /* n = 2 */            owner_map[owner_map[child]] == ancestor 
   /* ...   */
-  /* n = kmax_depth_t */ owner_map[owner_map[owner_map[child]]] == ancestor
+  // /* n = kmax_depth_t */ owner_map[owner_map[owner_map[child]]] == ancestor
 }
 
 // -------------------------------------------------------------------- //

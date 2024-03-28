@@ -348,12 +348,9 @@ procedure {:inline 1} EnclaveStep(
 
     if (tap_enclave_metadata_privileged[cpu_enclave_id]) {
         if (op == tap_proof_op_compute) {
-            // Updated ver. Apr 17, 2023.
-            // do whatever.
             havoc cpu_regs;
             havoc cpu_pc;
             havoc i_eid;
-            // fetch from whereever inside the enclave.
             assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
             assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
             assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
@@ -431,12 +428,9 @@ procedure {:inline 1} EnclaveStep(
         } 
     } else {
         if (op == tap_proof_op_compute) {
-            // Updated ver. Apr 17, 2023.
-            // do whatever.
             havoc cpu_regs;
             havoc cpu_pc;
             havoc i_eid;
-            // fetch from whereever inside the enclave.
             assume tap_enclave_metadata_addr_excl[eid][cpu_pc];
             assume tap_addr_perm_x(cpu_addr_valid[cpu_pc]);
             assert cpu_owner_map[cpu_addr_map[cpu_pc]] == eid;
