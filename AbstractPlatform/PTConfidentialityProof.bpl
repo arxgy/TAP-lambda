@@ -162,6 +162,7 @@ procedure ProveConfidentialityPT(
     current_mode_1 := current_mode;
     current_mode_2 := current_mode;
 
+    assert cpu_enclave_id_1 == tap_null_enc_id && cpu_enclave_id_2 == tap_null_enc_id;
     while (*)
         //// MC adversary ////
         invariant (!obs_pt_ev_read) ==> (observation_1 == observation_2);
@@ -171,14 +172,15 @@ procedure ProveConfidentialityPT(
         invariant tap_enclave_metadata_privileged_1[eid] == e_privileged;
         invariant tap_enclave_metadata_privileged_2[eid] == e_privileged;
 
-        //  Apr 19, 2023
-        //  privileged relationship: multiple PE
+        // upperbound of ownermap 
         invariant (forall e : tap_enclave_id_t :: 
                 (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_privileged_1[e]) ==> 
-                        (tap_enclave_metadata_owner_map_1[e] == tap_null_enc_id));
+                    distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t) == tap_null_enc_id);
+                    // pe_farthest_parent(tap_enclave_metadata_owner_map_1, e) == tap_null_enc_id);
         invariant (forall e : tap_enclave_id_t :: 
                 (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_privileged_2[e]) ==> 
-                        (tap_enclave_metadata_owner_map_2[e] == tap_null_enc_id));
+                    distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t) == tap_null_enc_id);
+                    // pe_farthest_parent(tap_enclave_metadata_owner_map_2, e) == tap_null_enc_id);
 
         // valid guarantee
         invariant tap_enclave_metadata_valid_1[tap_null_enc_id];
@@ -200,11 +202,11 @@ procedure ProveConfidentialityPT(
         invariant tap_enclave_metadata_owner_map_1[tap_null_enc_id] == tap_null_enc_id;
         invariant tap_enclave_metadata_owner_map_2[tap_null_enc_id] == tap_null_enc_id;
 
-        // enclave ownermap relationship: the maximal parent-tree depth is 2 
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_1[e]) ==> 
-                    (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
-        invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
-                    (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
+        // enclave ownermap relationship: the maximal parent-tree depth is 'n'
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t+1) == tap_null_enc_id);
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
 
         // enclave ownermap relationship: enclave with chidren must be privileged 
         invariant (forall e : tap_enclave_id_t :: 
