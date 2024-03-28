@@ -259,8 +259,7 @@ implementation launch(
         return;
     }
     
-    // do not support P-P launch for now
-    if (tap_enclave_metadata_privileged[cpu_enclave_id] && privileged) {
+    if (tap_enclave_metadata_privileged[cpu_enclave_id] && is_leaf_pe(tap_enclave_metadata_owner_map, cpu_enclave_id) && privileged) {
         status := enclave_op_invalid_arg;
         return;
     }
