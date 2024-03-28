@@ -197,12 +197,10 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
     o == tap_proof_op_pause    
 }
 
-
-
 // Make sense only if eid is valid.
 const kmax_depth_t : int;
 // axiom kmax_depth_t == 3;
-axiom kmax_depth_t == 2;
+axiom kmax_depth_t == 4;
 function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
 {
   if (depth == 1)
@@ -210,41 +208,26 @@ function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_encla
     else tree[distant_parent(tree, eid, depth-1)]
 }
 
-// ownermap^{(n)} != OS ; n = 2
 function is_leaf_ne (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : bool
 {
-  // owner_map[owner_map[eid]] != tap_null_enc_id
   distant_parent(owner_map, eid, kmax_depth_t) != tap_null_enc_id
 }
 
-// ownermap^{(n-1)} != OS ; n = 2
 function is_leaf_pe (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : bool
 {
-  // owner_map[eid] != tap_null_enc_id
   distant_parent(owner_map, eid, kmax_depth_t-1) != tap_null_enc_id
 }
 
-// // ownermap^{(n+1)} 
-// // Theorem : forall eid, farthest_parent(eid) == OS
-// function farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
-// {
-//   owner_map[owner_map[owner_map[owner_map[eid]]]]
-// }
-// // Theorem : forall PE, pe_farthest_parent(PE) == OS
-// function pe_farthest_parent (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : tap_enclave_id_t
-// {
-//   owner_map[owner_map[eid]]
-// }
-
-// exists n \in [1, \inf], distant_parent(map, child, n) = ancestor
 // We unroll it manually according to 'kmax_depth_t'
 function is_ancestor (owner_map :tap_enclave_metadata_owner_map_t, child : tap_enclave_id_t, ancestor : tap_enclave_id_t) : bool
 {
-  /* n = 1 */            owner_map[child] == ancestor || 
-  /* n = 2 */            owner_map[owner_map[child]] == ancestor 
-  /* ...   */
-  // /* n = kmax_depth_t */ owner_map[owner_map[owner_map[child]]] == ancestor
+  (exists n : int :: ((n >= 1) && (n <= kmax_depth_t) && (distant_parent(owner_map, child, n) == ancestor)))
 }
+  // /* n = 1 */            owner_map[child] == ancestor || 
+  // /* n = 2 */            owner_map[owner_map[child]] == ancestor 
+                        //  owner_map[owner_map[owner_map[child]]] == ancestor || 
+  /* ...   */
+  // /* n = kmax_depth_t */ owner_map[owner_map[owner_map[owner_map[child]]]] == ancestor
 
 // -------------------------------------------------------------------- //
 // constants for enclaves.                                              //
