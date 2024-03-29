@@ -314,7 +314,13 @@ procedure InitialHavoc(eid: tap_enclave_id_t)
     ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
         tap_enclave_metadata_valid[e] ==> 
             (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e));
-    
+
+    // enclave ownermap relationship: the maximal parent-tree depth is 'n'
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t+1) == tap_null_enc_id);
+    ensures (forall e : tap_enclave_id_t :: 
+        tap_enclave_metadata_valid[e] && tap_enclave_metadata_privileged[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t) == tap_null_enc_id);
 
 // launch startup stage.
 procedure LaunchHavoc(eid : tap_enclave_id_t) 

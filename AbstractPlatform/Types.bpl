@@ -198,10 +198,9 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 }
 
 // Make sense only if eid is valid.
-const kmax_depth_t : int;
-// axiom kmax_depth_t == 3;
+const unique kmax_depth_t : int;
+// axiom kmax_depth_t >= 1;
 axiom kmax_depth_t == 5;
-// axiom kmax_depth_t == 4;
 function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
 {
   if (depth == 1)

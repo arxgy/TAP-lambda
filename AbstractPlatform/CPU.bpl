@@ -509,6 +509,11 @@ procedure launch(
         ((tap_enclave_metadata_valid[e] && (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
             (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e))); 
 
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t+1) == tap_null_enc_id);
+    ensures (forall e : tap_enclave_id_t :: 
+        tap_enclave_metadata_valid[e] && tap_enclave_metadata_privileged[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t) == tap_null_enc_id);
 
 // -------------------------------------------------------------------- //
 // Enter an enclave                                                     //
