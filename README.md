@@ -7,56 +7,36 @@ In this project. the Secure Measurement, Integrity, and Confidentiality (which a
 # Setup
 Install Boogie 2.16.0 on your platform (dotnet is recommended), and export `boogie` to your environment variables.
 
-1. Update your apt package.
 
-    ```
+    // Update your apt package.
     wget https://packages.microsoft.com/config/ubuntu/20.04/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
     sudo dpkg -i packages-microsoft-prod.deb
     rm packages-microsoft-prod.deb
-    ```
-2. Install .NET 6.0
 
-    ```
-    sudo apt-get update && \ sudo apt-get install -y dotnet-sdk-6.0
-    sudo apt-get update && \ sudo apt-get install -y aspnetcore-runtime-6.0
-    ```
-
-3. Install boogie 2.16
+    // Install .NET 6.0 & Z3
+    sudo apt-get update && \ sudo apt-get install -y dotnet-sdk-6.0 aspnetcore-runtime-6.0 z3
     
-    ```
+    // Install boogie 2.16
     dotnet tool install --global boogie --version 2.16
-    ```
 
-4. Add Boogie toolchains to your environment variables. (optional)
-
-    ```
+    // Add Boogie toolchains to your environment variables. (optional)
     export PATH=$PATH:$HOME/.dotnet/tools/
-    ```
-5. Install Z3
 
-    ```
-    sudo apt-get update && \ sudo apt-get -y install z3
-    ```
     
 # Run
     $ cd AbstractPlatform
     $ make clean && make all
-# Debugg / Develop / Detailed Info
+# Debug / Develop / Detailed Info
 To get elaborated messages about the model, do these things:
-1. Substitute the `LOWER/UPPERLEVELOPT` flag with `LOWER/UPPERLEVELOPT_DBG`.
+1. Use the make-object with the `_dbg` postfix.
 2. Do: 
+   
     ```
     cd AbstractPlatform   
     mkdir dotfiles
     make clean && make <whatever-you-like> && make cut
     ```
-    The `LOWER/UPPERLEVELOPT_DBG` flag and `cut` object in Makefile helps you to generate numerous valuable messages, including intermediate code, backend Z3 SMTs, counterexamples, execution times, to mention a few.
-
-# Directory Structure
-
-The are three top-level directories:
-* AbstractPlatform (The extened TAP)
-* Code (Code Implementation on Penglai-TVM)
+    The `LOWER/UPPERLEVELOPT_DBG` flag and `cut` object in Makefile helps you to generate numerous valuable messages, including intermediate code, backend Z3 SMTs, counterexamples, execution times, and so forth.
 
 <!-- # Setup
 
