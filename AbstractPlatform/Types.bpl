@@ -220,10 +220,16 @@ function is_leaf_pe (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_encl
     else distant_parent(owner_map, eid, kmax_depth_t-1) != tap_null_enc_id
 }
 
+// check whether EuT (eid) is the ancestor of child
 // We unroll it manually according to 'kmax_depth_t'
-function is_ancestor (owner_map :tap_enclave_metadata_owner_map_t, child : tap_enclave_id_t, ancestor : tap_enclave_id_t) : bool
+function {:inline} is_ancestor_EuT (owner_map :tap_enclave_metadata_owner_map_t, child : tap_enclave_id_t, ancestor : tap_enclave_id_t) : bool
 {
   (exists n : int :: ((n >= 1) && (n <= kmax_depth_t) && (distant_parent(owner_map, child, n) == ancestor)))
+}
+
+function {:inline} is_valid_depth (n : int) : bool
+{
+  (n >= 1) && (n <= kmax_depth_t + 1)
 }
   // /* n = 1 */            owner_map[child] == ancestor || 
   // /* n = 2 */            owner_map[owner_map[child]] == ancestor 

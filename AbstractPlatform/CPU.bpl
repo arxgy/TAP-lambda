@@ -359,11 +359,25 @@ procedure launch(
         tap_enclave_metadata_valid[e] ==> tap_enclave_metadata_owner_map[e] != eid);
     // Ownermap consistency as prerequisite.
     requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
-    // requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-    //     (tap_enclave_metadata_owner_map[tap_enclave_metadata_owner_map[e]] == tap_null_enc_id));
+
+    // maintain 'distant_parent' function
     requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
         distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t+1) == tap_null_enc_id);
-        // farthest_parent(tap_enclave_metadata_owner_map, e) == tap_null_enc_id);
+    requires (forall e : tap_enclave_id_t :: 
+        tap_enclave_metadata_valid[e] && tap_enclave_metadata_privileged[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t) == tap_null_enc_id);
+    requires (forall n : int :: 
+        distant_parent(tap_enclave_metadata_owner_map, tap_null_enc_id, n) == tap_null_enc_id);
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map, e, 1) == tap_enclave_metadata_owner_map[e]);
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map, distant_parent(tap_enclave_metadata_owner_map, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map, e, n1 + n2)));
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+            (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+                distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
 
     // bi-direction, seems to be stronger but just as same.
     requires (forall va : vaddr_t :: 
@@ -509,11 +523,24 @@ procedure launch(
         ((tap_enclave_metadata_valid[e] && (tap_enclave_metadata_privileged[e] || tap_enclave_metadata_privileged[tap_enclave_metadata_owner_map[e]])) ==> 
             (tap_enclave_metadata_addr_excl[e][v] <==> cpu_owner_map[tap_enclave_metadata_addr_map[e][v]] == e))); 
 
+    // maintain 'distant_parent' function
     ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
         distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t+1) == tap_null_enc_id);
     ensures (forall e : tap_enclave_id_t :: 
         tap_enclave_metadata_valid[e] && tap_enclave_metadata_privileged[e] ==> 
             distant_parent(tap_enclave_metadata_owner_map, e, kmax_depth_t) == tap_null_enc_id);
+    ensures (forall n : int :: 
+        distant_parent(tap_enclave_metadata_owner_map, tap_null_enc_id, n) == tap_null_enc_id);
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map, e, 1) == tap_enclave_metadata_owner_map[e]);
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map, distant_parent(tap_enclave_metadata_owner_map, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map, e, n1 + n2)));
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+        (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+            (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+                distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
 
 // -------------------------------------------------------------------- //
 // Enter an enclave                                                     //
