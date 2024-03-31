@@ -208,6 +208,34 @@ procedure ProveConfidentialityPT(
         invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
             distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
 
+        invariant (forall n : int :: 
+            distant_parent(tap_enclave_metadata_owner_map_1, tap_null_enc_id, n) == tap_null_enc_id);
+        invariant (forall n : int ::
+            distant_parent(tap_enclave_metadata_owner_map_2, tap_null_enc_id, n) == tap_null_enc_id);
+        
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, 1) == tap_enclave_metadata_owner_map_1[e]);
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, 1) == tap_enclave_metadata_owner_map_2[e]);
+        
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+            (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+                distant_parent(tap_enclave_metadata_owner_map_1, distant_parent(tap_enclave_metadata_owner_map_1, e, n1), n2) == 
+                distant_parent(tap_enclave_metadata_owner_map_1, e, n1 + n2)));
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+            (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+                distant_parent(tap_enclave_metadata_owner_map_2, distant_parent(tap_enclave_metadata_owner_map_2, e, n1), n2) == 
+                distant_parent(tap_enclave_metadata_owner_map_2, e, n1 + n2)));
+
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+            (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map_1, e, n) == tap_null_enc_id) ==> 
+                (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+                    distant_parent(tap_enclave_metadata_owner_map_1, e, m) == tap_null_enc_id)));
+        invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+            (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map_2, e, n) == tap_null_enc_id) ==> 
+                (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+                    distant_parent(tap_enclave_metadata_owner_map_2, e, m) == tap_null_enc_id)));
+
         // enclave ownermap relationship: enclave with chidren must be privileged 
         invariant (forall e : tap_enclave_id_t :: 
                     (tap_enclave_metadata_valid_1[e] && tap_enclave_metadata_owner_map_1[e] != tap_null_enc_id) ==> 
