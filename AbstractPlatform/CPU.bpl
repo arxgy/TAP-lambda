@@ -355,8 +355,11 @@ procedure launch(
     requires (!tap_enclave_metadata_valid[eid]);
     // launch validity
     requires (tap_enclave_metadata_valid[tap_null_enc_id]);
+    requires (tap_enclave_metadata_valid[cpu_enclave_id]);
     requires (forall e : tap_enclave_id_t :: 
         tap_enclave_metadata_valid[e] ==> tap_enclave_metadata_owner_map[e] != eid);
+    requires (forall e : tap_enclave_id_t :: 
+        tap_enclave_metadata_valid[e] ==> tap_enclave_metadata_valid[tap_enclave_metadata_owner_map[e]]);
     // Ownermap consistency as prerequisite.
     requires (tap_enclave_metadata_owner_map[tap_null_enc_id] == tap_null_enc_id);
 
@@ -374,10 +377,16 @@ procedure launch(
         (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
             distant_parent(tap_enclave_metadata_owner_map, distant_parent(tap_enclave_metadata_owner_map, e, n1), n2) == 
             distant_parent(tap_enclave_metadata_owner_map, e, n1 + n2)));
-    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-        (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
-            (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
-                distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
+    // FATAL: hyperproperty with 'forall-exist' cannot be verified by Boogie. Adn skolemization is needed.
+    // requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+    //     (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+    //         (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+    //             distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
+    requires (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid[e] && 
+         is_valid_depth(n) && is_valid_depth(n+1) && 
+         distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map, e, n+1) == tap_null_enc_id);
 
     // bi-direction, seems to be stronger but just as same.
     requires (forall va : vaddr_t :: 
@@ -537,10 +546,16 @@ procedure launch(
         (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
             distant_parent(tap_enclave_metadata_owner_map, distant_parent(tap_enclave_metadata_owner_map, e, n1), n2) == 
             distant_parent(tap_enclave_metadata_owner_map, e, n1 + n2)));
-    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
-        (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
-            (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
-                distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
+    // FATAL: hyperproperty with 'forall-exist' cannot be verified by Boogie. Adn skolemization is needed.
+    // ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid[e] ==> 
+    //     (exists n : int :: (is_valid_depth(n) && (n < kmax_depth_t+1) && distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+    //         (forall m : int :: (m > n && m < kmax_depth_t+1) ==> 
+    //             distant_parent(tap_enclave_metadata_owner_map, e, m) == tap_null_enc_id)));
+    ensures (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid[e] && 
+         is_valid_depth(n) && is_valid_depth(n+1) && 
+         distant_parent(tap_enclave_metadata_owner_map, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map, e, n+1) == tap_null_enc_id);
 
 // -------------------------------------------------------------------- //
 // Enter an enclave                                                     //

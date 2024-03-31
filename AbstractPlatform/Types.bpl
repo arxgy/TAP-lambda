@@ -201,12 +201,28 @@ function tap_proof_op_valid_in_privileged (o : tap_proof_op_t) : bool
 const unique kmax_depth_t : int;
 // axiom kmax_depth_t >= 1;
 axiom kmax_depth_t == 2;
-function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
+// function distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
+// {
+//   if (depth == 1)
+//     then tree[eid]
+//     else tree[distant_parent(tree, eid, depth-1)]
+// }
+
+// unroll the distant parent: 
+function {:inline} distant_parent(tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int) : tap_enclave_id_t
 {
   if (depth == 1)
-    then tree[eid]
-    else tree[distant_parent(tree, eid, depth-1)]
-}
+    then tree[eid]  
+  else if (depth == 2)
+    then tree[tree[eid]]
+  else if (depth == 3)
+    then tree[tree[tree[eid]]]
+  else if (depth == 4)
+    then tree[tree[tree[tree[eid]]]]
+  else eid /* unreachable */
+}  
+// axiom (forall tree : tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t, depth : int ::  
+//   distant_parent(tree, eid, depth) == distant_parent_unrolled(tree, eid, depth));
 
 function is_leaf_ne (owner_map: tap_enclave_metadata_owner_map_t, eid : tap_enclave_id_t) : bool
 {
