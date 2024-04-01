@@ -556,6 +556,43 @@ procedure measurement_proof_part1()
   ensures (forall e : tap_enclave_id_t :: 
     (tap_enclave_metadata_valid_2[e] && tap_enclave_metadata_owner_map_2[e] != tap_null_enc_id) ==> 
       (tap_enclave_metadata_privileged_2[tap_enclave_metadata_owner_map_2[e]]));
+    
+    // invariants about 'distant_parent'
+    // We give constructive evidences of 'distant_parent'
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t+1) == tap_null_enc_id);
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
+        
+    ensures (forall n : int :: 
+        distant_parent(tap_enclave_metadata_owner_map_1, tap_null_enc_id, n) == tap_null_enc_id);
+    ensures (forall n : int ::
+        distant_parent(tap_enclave_metadata_owner_map_2, tap_null_enc_id, n) == tap_null_enc_id);
+
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, 1) == tap_enclave_metadata_owner_map_1[e]);
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, 1) == tap_enclave_metadata_owner_map_2[e]);
+
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, distant_parent(tap_enclave_metadata_owner_map_1, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n1 + n2)));
+    ensures (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, distant_parent(tap_enclave_metadata_owner_map_2, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n1 + n2)));
+
+    ensures (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_1[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n+1) == tap_null_enc_id);
+    ensures (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_2[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n+1) == tap_null_enc_id);
 
   // extend exclusive memory consistency and structure rules. Apr 14, 2023.
   ensures (forall e : tap_enclave_id_t, v : vaddr_t :: 
@@ -846,6 +883,43 @@ procedure measurement_proof_part2
           (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
   requires (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
           (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
+
+    // invariants about 'distant_parent'
+    // We give constructive evidences of 'distant_parent'
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t+1) == tap_null_enc_id);
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
+        
+    requires (forall n : int :: 
+        distant_parent(tap_enclave_metadata_owner_map_1, tap_null_enc_id, n) == tap_null_enc_id);
+    requires (forall n : int ::
+        distant_parent(tap_enclave_metadata_owner_map_2, tap_null_enc_id, n) == tap_null_enc_id);
+
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, 1) == tap_enclave_metadata_owner_map_1[e]);
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, 1) == tap_enclave_metadata_owner_map_2[e]);
+
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, distant_parent(tap_enclave_metadata_owner_map_1, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n1 + n2)));
+    requires (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, distant_parent(tap_enclave_metadata_owner_map_2, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n1 + n2)));
+
+    requires (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_1[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n+1) == tap_null_enc_id);
+    requires (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_2[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n+1) == tap_null_enc_id);
   // if the mode_untrusted is from PE's children enclave, then the 2 traces is in **one** children enclave of this PE.
   requires ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid_1) ==> 
           (tap_enclave_metadata_valid_2[cpu_enclave_id_2]));
@@ -936,7 +1010,44 @@ procedure measurement_proof_part2
         (tap_enclave_metadata_owner_map_1[tap_enclave_metadata_owner_map_1[e]] == tap_null_enc_id));
     invariant (forall e : tap_enclave_id_t :: (tap_enclave_metadata_valid_2[e]) ==> 
         (tap_enclave_metadata_owner_map_2[tap_enclave_metadata_owner_map_2[e]] == tap_null_enc_id));
-    
+
+    // invariants about 'distant_parent'
+    // We give constructive evidences of 'distant_parent'
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, kmax_depth_t+1) == tap_null_enc_id);
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, kmax_depth_t+1) == tap_null_enc_id);
+        
+    invariant (forall n : int :: 
+        distant_parent(tap_enclave_metadata_owner_map_1, tap_null_enc_id, n) == tap_null_enc_id);
+    invariant (forall n : int ::
+        distant_parent(tap_enclave_metadata_owner_map_2, tap_null_enc_id, n) == tap_null_enc_id);
+
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_1, e, 1) == tap_enclave_metadata_owner_map_1[e]);
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        distant_parent(tap_enclave_metadata_owner_map_2, e, 1) == tap_enclave_metadata_owner_map_2[e]);
+
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_1[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, distant_parent(tap_enclave_metadata_owner_map_1, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n1 + n2)));
+    invariant (forall e : tap_enclave_id_t :: tap_enclave_metadata_valid_2[e] ==> 
+        (forall n1, n2 : int :: (is_valid_depth(n1) && is_valid_depth(n2) && (is_valid_depth(n1 + n2))) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, distant_parent(tap_enclave_metadata_owner_map_2, e, n1), n2) == 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n1 + n2)));
+
+    invariant (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_1[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_1, e, n+1) == tap_null_enc_id);
+    invariant (forall e : tap_enclave_id_t, n : int :: 
+        (tap_enclave_metadata_valid_2[e] && 
+            is_valid_depth(n) && is_valid_depth(n+1) && 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n) == tap_null_enc_id) ==> 
+            distant_parent(tap_enclave_metadata_owner_map_2, e, n+1) == tap_null_enc_id);
+
     // if the mode_untrusted is from PE's children enclave, then the 2 traces is in **one** children enclave of this PE.
     invariant ((tap_enclave_metadata_owner_map_1[cpu_enclave_id_1] == eid_1) ==> 
         (tap_enclave_metadata_valid_2[cpu_enclave_id_2]));
