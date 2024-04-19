@@ -1,5 +1,5 @@
-# $\text{TAP}^2$
-> This document is provided by Anonymous Author @ Apr 20, 2023.
+# $\text{TAP}^{\lambda}$
+> This document is provided by Anonymous Author @ Apr 20, 2024.
 # Intro
 This model provides an extended Trusted Abstract Platform (TAP) model with the newly proposed **Privileged Enclave** prototype. **Privileged Enclave** is an efficient extension designed for data sharing and introspection within/onto enclaves.
 
